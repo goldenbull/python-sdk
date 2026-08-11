@@ -67,7 +67,7 @@ from .table import (
     wavg,
     wsum,
 )
-from .utils import month
+from .utils import month, set_dtypes_for_arrow
 from .vector import FilterCond, Vector
 from .writer import (
     BatchTableWriter,
@@ -76,13 +76,14 @@ from .writer import (
     MultithreadedTableWriterThreadStatus,
 )
 
-__version__ = "3.0.4.2"
+__version__ = "3.0.6.0"
 
 name = "dolphindb"
 
 __all__ = [
     "Session", "session",
     "DBConnection",
+    "set_dtypes_for_arrow",
     "ConnectionSetting",
     "ConnectionConfig",
     "DBConnectionPool",

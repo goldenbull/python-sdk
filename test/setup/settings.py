@@ -14,11 +14,11 @@ PORT_CNODE1 = 9905
 USER_CLUSTER = "admin"
 PASSWD_CLUSTER = "123456"
 # work_dir
-WORK_DIR = "d:/code/python-sdk/test/workdir/"
+WORK_DIR = "/opt/downloads/test/"
 REMOTE_WORK_DIR = "/opt/downloads/test/"
 # data_dir
 DATA_DIR = '/opt/downloads/data/'
-LOCAL_DATA_DIR = "C:/Users/jianbo.shi/Downloads/data/"
+LOCAL_DATA_DIR = "/opt/downloads/data/"
 # report
 REPORT = False
 HOST_REPORT = "192.168.100.26"

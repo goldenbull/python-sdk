@@ -2,6 +2,7 @@
 
 #include "ConstantImp.h"
 #include <string>
+#include "RequestArgument.h"
 #include "pybind11/pybind11.h"
 #include "PytoDdbRowPool.h"
 
@@ -61,6 +62,12 @@ public:
         const string& funcName, vector<ConstantSP>& args, int priority = 4, int parallelism = 64,
         int fetchSize = 0, bool clearMemory = false,
         bool pickleTableToList = false, bool disableDecimal = false, bool withTableSchema = false);
+    py::object runPy(
+        const string& funcName, vector<RequestArgument>& args, int priority = 4, int parallelism = 64,
+        int fetchSize = 0, bool clearMemory = false, REQUEST_FORMAT requestFormat = REQUEST_FORMAT_AUTO,
+        bool pickleTableToList = false, bool disableDecimal = false, bool withTableSchema = false);
+    py::object uploadPy(vector<string>& names, vector<RequestArgument>& objs,
+                        REQUEST_FORMAT requestFormat = REQUEST_FORMAT_AUTO);
     void setkeepAliveTime(int keepAliveTime){
         if (keepAliveTime > 0)
             keepAliveTime_ = keepAliveTime;
@@ -74,14 +81,23 @@ public:
     const string getSessionId() const {
         return sessionId_;
     }
+    PROTOCOL getProtocol() const {
+        return protocol_;
+    }
     DataInputStreamSP getDataInputStream(){return inputStream_;}
     std::shared_ptr<Logger> getMsgLogger() { return logger_; }
 private:
-    long generateRequestFlag(bool clearSessionMemory = false, bool disableprotocol = false, bool pickleTableToList = false, bool disableDecimal = false);
+    long generateRequestFlag(bool clearSessionMemory = false, REQUEST_FORMAT requestFormat = REQUEST_FORMAT_AUTO,
+                             bool pickleTableToList = false, bool disableDecimal = false);
     ConstantSP run(const string& script, const string& scriptType, vector<ConstantSP>& args, int priority = 4, int parallelism = 64,int fetchSize = 0, bool clearMemory = false);
     py::object runPy(
         const string& script, const string& scriptType, vector<ConstantSP>& args,
         int priority = 4, int parallelism = 64, int fetchSize = 0, bool clearMemory = false,
+        bool pickleTableToList = false, bool disableDecimal = false, bool withTableSchema = false);
+    py::object runPy(
+        const string& script, const string& scriptType, vector<RequestArgument>& args,
+        int priority = 4, int parallelism = 64, int fetchSize = 0, bool clearMemory = false,
+        REQUEST_FORMAT requestFormat = REQUEST_FORMAT_AUTO,
         bool pickleTableToList = false, bool disableDecimal = false, bool withTableSchema = false);
     bool connect();
     void login();

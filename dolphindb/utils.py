@@ -82,6 +82,18 @@ def standard_deprecated(msg: str):
     )
 
 
+def set_dtypes_for_arrow(table, ddb_dtypes: Dict[str, object]):
+    """Return a new ``pyarrow.Table`` with DolphinDB upload type hints in field metadata.
+
+    This helper does not mutate the input table.
+
+    Args:
+        table: A ``pyarrow.Table``.
+        ddb_dtypes: Mapping of column name to expected DolphinDB upload type.
+    """
+    return ddbcpp.setArrowUploadType(table, dict(ddb_dtypes))
+
+
 def dispatcher(func):
     registery_signature: List[Signature] = []
     registery_functions: List[Callable] = []

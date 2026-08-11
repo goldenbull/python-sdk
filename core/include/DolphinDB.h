@@ -29,6 +29,7 @@
 #include "Constant.h"
 #include "Dictionary.h"
 #include "Table.h"
+#include "RequestArgument.h"
 #include "pybind11/pybind11.h"
 
 #include "TypeHelper.h"
@@ -148,6 +149,12 @@ public:
 		const string& funcName, vector<ConstantSP>& args, int priority=4, int parallelism=64,
 		int fetchSize=0, bool clearMemory=false,
 		bool pickleTableToList=false, bool disableDecimal=false, bool withTableSchema = false);
+	py::object runPy(
+		const string& funcName, vector<RequestArgument>& args, int priority=4, int parallelism=64,
+		int fetchSize=0, bool clearMemory=false, REQUEST_FORMAT requestFormat = REQUEST_FORMAT_AUTO,
+		bool pickleTableToList=false, bool disableDecimal=false, bool withTableSchema = false);
+	py::object uploadPy(vector<string>& names, vector<RequestArgument>& objs,
+		REQUEST_FORMAT requestFormat = REQUEST_FORMAT_AUTO);
 	void setKeepAliveTime(int keepAliveTime);
 	void setTimeout(int readTimeout, int writeTimeout);
 	const string getSessionId() const;
@@ -157,6 +164,7 @@ public:
     const string getPassword() const;
     bool isClosed() const;
 	void setProtocol(PROTOCOL protocol);
+	PROTOCOL getProtocol() const { return protocol_; }
 	void setShowOutput(bool flag);
     std::shared_ptr<Logger> getMsgLogger();
 
@@ -264,8 +272,15 @@ public:
 		int identity, int priority=4, int parallelism=64,
 		int fetchSize=0, bool clearMemory = false,
 		bool pickleTableToList=false, bool disableDecimal=false);
+	void runPy(
+		const string& functionName, const vector<RequestArgument>& args,
+		int identity, int priority=4, int parallelism=64,
+		int fetchSize=0, bool clearMemory = false,
+		REQUEST_FORMAT requestFormat = REQUEST_FORMAT_AUTO,
+		bool pickleTableToList=false, bool disableDecimal=false);
 	py::object getPyData(int identity);
 	vector<string> getSessionId();
+	PROTOCOL getProtocol() const;
 private:
 	// SmartPointer<DBConnectionPoolImpl> pool_;
 	std::shared_ptr<DBConnectionPoolImpl> pool_;
@@ -280,8 +295,10 @@ public:
 	PartitionedTableAppender(string dbUrl, string tableName, string partitionColName, string appendFunction, DBConnectionPool& pool);
 	virtual ~PartitionedTableAppender();
 	int append(TableSP table);
+	vector<vector<int>> split(TableSP table);
 	vector<Type> getColTypes();
 	vector<string> getColNames();
+	const string& getAppendScript() const { return appendScript_; }
 
 private:
  	void init(string dbUrl, string tableName, string partitionColName, string appendFunction);
@@ -289,8 +306,7 @@ private:
 	void checkColumnType(int col, DATA_CATEGORY category, DATA_TYPE type);
 
 private:
-	// SmartPointer<DBConnectionPoolImpl> pool_;
-	std::shared_ptr<DBConnectionPoolImpl> pool_;
+    std::shared_ptr<DBConnectionPoolImpl> pool_;
 	string appendScript_;
 	int threadCount_;
     DictionarySP tableInfo_;
@@ -312,6 +328,7 @@ public:
 	int append(TableSP table);
 	vector<Type> getColTypes();
 	vector<string> getColNames();
+	const string& getAppendScript() const { return appendScript_; }
 
 private:
 	void checkColumnType(int col, DATA_CATEGORY category, DATA_TYPE type);
@@ -337,6 +354,7 @@ public:
 	int upsert(TableSP table);
 	vector<Type> getColTypes();
 	vector<string> getColNames();
+	const string& getUpsertScript() const { return upsertScript_; }
 
 private:
 	void checkColumnType(int col, DATA_CATEGORY category, DATA_TYPE type);

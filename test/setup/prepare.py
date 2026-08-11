@@ -5804,25 +5804,25 @@ def get_Table(*args, n=100, typeTable="table", isShare=False, **kwargs):
         "download": [
             ("{}_symbol_0".format(testTypeTable), pd.DataFrame({"index": np.arange(1, n + 1).astype("int32"),
                                                                 "symbol_0": np.tile(
-                                                                    np.array(["hello", "world"], dtype="str"),
+                                                                    np.array(["hello", "world"], dtype="object"),
                                                                     ceil(n / 2))[:n],
                                                                 "symbol_1": np.tile(
-                                                                    np.array(["hello", ''], dtype="str"), ceil(n / 2))[
+                                                                    np.array(["hello", ''], dtype="object"), ceil(n / 2))[
                                                                     :n],
                                                                 })),
             ("{}_symbol_1".format(testTypeTable), pd.DataFrame({"index": np.arange(1, n + 1).astype("int32"),
                                                                 "symbol_0": np.tile(
-                                                                    np.array(["hello", "world"], dtype="str"),
+                                                                    np.array(["hello", "world"], dtype="object"),
                                                                     ceil(n / 2))[:n],
                                                                 })),
             ("{}_symbol_2".format(testTypeTable), pd.DataFrame({"index": np.arange(1, 2).astype("int32"),
-                                                                "symbol_0": np.array(["hello"], dtype="str"),
-                                                                "symbol_1": np.array(["world"], dtype="str"),
+                                                                "symbol_0": np.array(["hello"], dtype="object"),
+                                                                "symbol_1": np.array(["world"], dtype="object"),
                                                                 })),
             ("{}_symbol_3".format(testTypeTable), pd.DataFrame({"index": np.array([], dtype="int32"),
-                                                                "symbol_0": np.array([], dtype="str"),
-                                                                "symbol_1": np.array([], dtype="str"),
-                                                                "symbol_2": np.array([], dtype="str")
+                                                                "symbol_0": np.array([], dtype="object"),
+                                                                "symbol_1": np.array([], dtype="object"),
+                                                                "symbol_2": np.array([], dtype="object")
                                                                 })),
         ],
     }, DATATYPE.DT_STRING: {

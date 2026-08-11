@@ -6,6 +6,8 @@ import pytest
 from numpy.testing import assert_array_equal
 from pandas.testing import assert_frame_equal
 
+from basic_testing.prepare import PANDAS_VERSION
+from basic_testing.utils import equalPlus
 from setup.settings import HOST, PORT, USER, PASSWD, REMOTE_WORK_DIR
 
 
@@ -1329,7 +1331,7 @@ class TestLoadTable:
         self.conn.run("in_memory_table=table(1 2 3 as c1,`1`2`3 as c2,`a`b`c as c3)")
         in_memory_table = self.conn.loadTable(tableName='in_memory_table')
         in_memory_table.drop('c1')
-        expect = pd.DataFrame({'c2': ['1', '2', '3'], 'c3': ['a', 'b', 'c']}, dtype='object')
+        expect = pd.DataFrame({'c2': ['1', '2', '3'], 'c3': ['a', 'b', 'c']}, dtype='object' if PANDAS_VERSION < (3, 0, 0) else 'str')
         assert_frame_equal(in_memory_table.toDF(), expect)
 
     def test_loadTable_in_memory_table_drop_list_len_eq_0(self):
@@ -1343,14 +1345,14 @@ class TestLoadTable:
         self.conn.run("in_memory_table=table(1 2 3 as c1,`1`2`3 as c2,`a`b`c as c3)")
         in_memory_table = self.conn.loadTable(tableName='in_memory_table')
         in_memory_table.drop(['c1'])
-        expect = pd.DataFrame({'c2': ['1', '2', '3'], 'c3': ['a', 'b', 'c']}, dtype='object')
+        expect = pd.DataFrame({'c2': ['1', '2', '3'], 'c3': ['a', 'b', 'c']}, dtype='object' if PANDAS_VERSION < (3, 0, 0) else 'str')
         assert_frame_equal(in_memory_table.toDF(), expect)
 
     def test_loadTable_in_memory_table_drop_list_len_gt_1(self):
         self.conn.run("in_memory_table=table(1 2 3 as c1,`1`2`3 as c2,`a`b`c as c3)")
         in_memory_table = self.conn.loadTable(tableName='in_memory_table')
         in_memory_table.drop(['c1', 'c2'])
-        expect = pd.DataFrame({'c3': ['a', 'b', 'c']}, dtype='object')
+        expect = pd.DataFrame({'c3': ['a', 'b', 'c']}, dtype='object' if PANDAS_VERSION < (3, 0, 0) else 'str')
         assert_frame_equal(in_memory_table.toDF(), expect)
 
     def test_loadTable_olap_table_drop_str(self):
@@ -1367,7 +1369,7 @@ class TestLoadTable:
         """)
         olap_table = self.conn.loadTable(tableName=tbName1, dbPath=dbPath)
         olap_table.drop('c1')
-        expect = pd.DataFrame({'c2': ['1', '2', '3'], 'c3': ['a', 'b', 'c']}, dtype='object')
+        expect = pd.DataFrame({'c2': ['1', '2', '3'], 'c3': ['a', 'b', 'c']}, dtype='object' if PANDAS_VERSION < (3, 0, 0) else 'str')
         assert_frame_equal(olap_table.toDF(), expect)
 
     def test_loadTable_olap_table_drop_list_len_eq_0(self):
@@ -1401,7 +1403,7 @@ class TestLoadTable:
         """)
         olap_table = self.conn.loadTable(tableName=tbName1, dbPath=dbPath)
         olap_table.drop(['c1'])
-        expect = pd.DataFrame({'c2': ['1', '2', '3'], 'c3': ['a', 'b', 'c']}, dtype='object')
+        expect = pd.DataFrame({'c2': ['1', '2', '3'], 'c3': ['a', 'b', 'c']}, dtype='object' if PANDAS_VERSION < (3, 0, 0) else 'str')
         assert_frame_equal(olap_table.toDF(), expect)
 
     def test_loadTable_olap_table_drop_list_len_gt_1(self):

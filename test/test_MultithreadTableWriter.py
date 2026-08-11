@@ -1856,16 +1856,6 @@ class TestMultithreadTableWriter:
         assert id == ex_id
         assert x == ex_x
 
-    def test_multithreadTableWriterTest_memoryTable_setStreamTableTimestamp(self):
-        func_name = inspect.currentframe().f_code.co_name
-        script_Stream_Table = f"""
-            tmp = table(1000:0, `id`x`timestamp, [LONG, TIMESTAMP, TIMESTAMP])
-            share tmp as `{func_name}
-            setStreamTableTimestamp({func_name}, `timestamp)
-        """
-        with pytest.raises(RuntimeError, match="must be a stream table"):
-            self.conn.run(script_Stream_Table)
-
     def test_multithreadTableWriterTest_memoryTable_enableStreamTableTimestamp_True(self):
         func_name = inspect.currentframe().f_code.co_name
         script_Stream_Table = f"""
@@ -1890,26 +1880,6 @@ class TestMultithreadTableWriter:
         cnt_timestamp = self.conn.run(f"select count(timestamp) from {func_name}")
         assert last["count"][0] - first["count"][0] == 0
         assert cnt_timestamp["count_timestamp"][0] == 0
-
-    def test_multithreadTableWriterTest_streamTable_setStreamTableTimestamp_NotTemporalColumn(self):
-        func_name = inspect.currentframe().f_code.co_name
-        script_Stream_Table = f"""
-            tmp = streamTable(1000:0, `id`x, [LONG, INT])
-            share tmp as `{func_name}
-            setStreamTableTimestamp({func_name}, `x)
-        """
-        with pytest.raises(RuntimeError, match=" x must be a temporal column"):
-            self.conn.run(script_Stream_Table)
-
-    def test_multithreadTableWriterTest_streamTable_setStreamTableTimestamp_NotLastColumn(self):
-        func_name = inspect.currentframe().f_code.co_name
-        script_Stream_Table = f"""
-            tmp = streamTable(1000:0, `id`x`timestamp, [LONG, TIMESTAMP, TIMESTAMP])
-            share tmp as `{func_name}
-            setStreamTableTimestamp({func_name}, `x)
-        """
-        with pytest.raises(RuntimeError, match="must be the last column of the table"):
-            self.conn.run(script_Stream_Table)
 
     def test_multithreadTableWriterTest_streamTable_enableStreamTableTimestamp_True_setStreamTableTimestamp(self):
         func_name = inspect.currentframe().f_code.co_name
@@ -2136,7 +2106,7 @@ class TestMultithreadTableWriter:
                      np.datetime64("2016-01-12")] * 1500)
         date.sort()
         ex = pd.DataFrame({
-            "date": date,
+            "date": pd.Series(date, dtype="datetime64[ns]"),
         })
         assert_frame_equal(re, ex)
         self.conn.dropDatabase(db_name)

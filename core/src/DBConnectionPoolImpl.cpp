@@ -9,7 +9,7 @@ DBConnectionPoolImpl::DBConnectionPoolImpl(const string &hostName, int port, int
                                            const string &password, bool loadBalance, bool highAvailability,
                                            bool compress, bool reConnect, PARSER_TYPE parser, PROTOCOL protocol,
                                            bool show_output, int sqlStd, int tryReconnectNums, bool usePublicName)
-    : shutDownFlag_(false), queue_(new SynchronizedQueue<Task>) {
+    : shutDownFlag_(false), queue_(new SynchronizedQueue<Task>), protocol_(protocol) {
     latch_ = new CountDownLatch(threadNum);
     if(!loadBalance){
         for(int i = 0 ;i < threadNum; i++){

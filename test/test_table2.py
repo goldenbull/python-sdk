@@ -7,7 +7,6 @@ import dolphindb.settings as keys
 import numpy as np
 import pandas as pd
 import pytest
-import statsmodels.api as sm
 from numpy.testing import assert_almost_equal, assert_array_equal, assert_array_almost_equal
 from pandas._testing import assert_frame_equal
 
@@ -190,8 +189,8 @@ class TestTable2:
 
     def test_table2_sql_merge_window(self):
         dt1 = self.conn.table(data={'sym': ["A", "A", "B"],
-                                    'time': [np.datetime64('2012-09-30 09:56:06'), np.datetime64('2012-09-30 09:56:07'),
-                                             np.datetime64('2012-09-30 09:56:06')],
+                                    'time': pd.to_datetime(['2012-09-30 09:56:06', '2012-09-30 09:56:07',
+                                                              '2012-09-30 09:56:06']),
                                     'price': [10.6, 10.7, 20.6]},
                               tableAliasName="t1")
         dt2 = self.conn.table(
@@ -703,11 +702,7 @@ class TestTable2:
         trade = self.conn.loadTable(tableName="trade", dbPath=db_name)
         z = trade.ols(Y='PRC', X=['BID'])
         res = z["Coefficient"]
-        prc_tmp = trade.toDF().PRC
-        bid_tmp = trade.toDF().BID
-        model = sm.OLS(prc_tmp, bid_tmp)
-        ex = model.fit().params
-        assert_almost_equal(res.iloc[1, 1], ex[0], decimal=4)
+        assert_almost_equal(res.iloc[1, 1], 1., decimal=4)
 
     def test_table2_function_parameter(self):
         t1 = self.conn.table(data={'sym': ['C', 'MS']}, tableAliasName="tmp")

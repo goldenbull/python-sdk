@@ -49,7 +49,6 @@
 namespace py = pybind11;
 namespace ddb = dolphindb;
 
-
 using converter::Converter;
 using converter::createType;
 using converter::PyObjs;
@@ -104,6 +103,271 @@ std::vector<std::string> _split(const std::string &s, char delim) {
     std::vector<std::string> elems;
     _split(s.c_str(), delim, elems);
     return elems;
+}
+
+bool isArrowProtocol(const ddb::DBConnection &conn) {
+    return conn.getProtocol() == ddb::PROTOCOL_ARROW;
+}
+
+bool isPyArrowTable(const py::handle &obj) {
+    return converter::PyObjs::cache_->has_arrow_ &&
+           py::isinstance(obj, converter::PyObjs::cache_->pa_table_);
+}
+
+py::dict copyArrowMetadata(const py::object &metadataObj) {
+    py::dict metadata;
+    if (metadataObj.is_none()) {
+        return metadata;
+    }
+    py::dict existing = py::reinterpret_borrow<py::dict>(metadataObj);
+    for (const auto &item : existing) {
+        metadata[item.first] = item.second;
+    }
+    return metadata;
+}
+
+void setArrowTypeMetadata(py::dict &metadata, const ddb::Type &type) {
+    metadata[py::str("ddbType")] = py::str(std::to_string(static_cast<int>(type.first)));
+    metadata[py::str("ddbExtra")] = py::str(std::to_string(EXPARM_VALUE(type.second)));
+}
+
+py::object buildArrowField(const std::string &name, const ddb::Type &type) {
+    auto pa = converter::PyObjs::cache_->pyarrow_;
+    int rawType = static_cast<int>(type.first);
+    int extra = EXPARM_VALUE(type.second);
+    py::object arrowType;
+    switch (rawType) {
+    case ddb::DT_BOOL:
+        arrowType = pa.attr("bool_")();
+        break;
+    case ddb::DT_CHAR:
+        arrowType = pa.attr("int8")();
+        break;
+    case ddb::DT_SHORT:
+        arrowType = pa.attr("int16")();
+        break;
+    case ddb::DT_INT:
+        arrowType = pa.attr("int32")();
+        break;
+    case ddb::DT_LONG:
+        arrowType = pa.attr("int64")();
+        break;
+    case ddb::DT_MONTH:
+    case ddb::DT_DATE:
+        arrowType = pa.attr("date32")();
+        break;
+    case ddb::DT_TIME:
+        arrowType = pa.attr("time32")("ms");
+        break;
+    case ddb::DT_SECOND:
+    case ddb::DT_MINUTE:
+        arrowType = pa.attr("time32")("s");
+        break;
+    case ddb::DT_DATETIME:
+    case ddb::DT_DATEHOUR:
+        arrowType = pa.attr("timestamp")("s");
+        break;
+    case ddb::DT_TIMESTAMP:
+        arrowType = pa.attr("timestamp")("ms");
+        break;
+    case ddb::DT_NANOTIME:
+        arrowType = pa.attr("time64")("ns");
+        break;
+    case ddb::DT_NANOTIMESTAMP:
+        arrowType = pa.attr("timestamp")("ns");
+        break;
+    case ddb::DT_FLOAT:
+        arrowType = pa.attr("float32")();
+        break;
+    case ddb::DT_DOUBLE:
+        arrowType = pa.attr("float64")();
+        break;
+    case ddb::DT_SYMBOL:
+        arrowType = pa.attr("dictionary")(pa.attr("int32")(), pa.attr("utf8")());
+        break;
+    case ddb::DT_IP:
+    case ddb::DT_STRING:
+        arrowType = pa.attr("utf8")();
+        break;
+    case ddb::DT_UUID:
+    case ddb::DT_INT128:
+        arrowType = pa.attr("binary")(16);
+        break;
+    case ddb::DT_BLOB:
+        arrowType = pa.attr("large_binary")();
+        break;
+    case ddb::DT_DECIMAL32:
+    case ddb::DT_DECIMAL64:
+    case ddb::DT_DECIMAL128:
+        arrowType = pa.attr("decimal128")(38, extra);
+        break;
+    default:
+        if (rawType >= ddb::ARRAY_TYPE_BASE) {
+            int valueType = rawType - ddb::ARRAY_TYPE_BASE;
+            if (valueType == ddb::DT_SYMBOL || valueType == ddb::DT_STRING ||
+                valueType == ddb::DT_BLOB || valueType == ddb::DT_DECIMAL32 ||
+                valueType == ddb::DT_DECIMAL64 || valueType == ddb::DT_DECIMAL128) {
+                throw std::runtime_error("This Arrow list type is not supported.");
+            }
+            arrowType = pa.attr("list_")(buildArrowField("", {static_cast<converter::HELPER_TYPE>(valueType), type.second}).attr("type"));
+            break;
+        }
+        throw std::runtime_error("Unsupported Arrow upload type: " + std::to_string(rawType));
+    }
+
+    py::dict metadata;
+    setArrowTypeMetadata(metadata, type);
+    return pa.attr("field")(py::str(name), arrowType, py::bool_(true), metadata);
+}
+
+py::object buildArrowSchema(const std::vector<std::string> &colNames,
+                            const std::vector<ddb::Type> &colTypes) {
+    auto pa = converter::PyObjs::cache_->pyarrow_;
+    py::list fields;
+    for (size_t i = 0; i < colNames.size(); ++i) {
+        fields.append(buildArrowField(colNames[i], colTypes[i]));
+    }
+    return pa.attr("schema")(fields);
+}
+
+void ensureArrowTableColumnsExist(const py::object &table,
+                                  const std::vector<std::string> &colNames) {
+    py::object schema = table.attr("schema");
+    std::vector<std::string> missing;
+    for (const auto &name : colNames) {
+        int index = schema.attr("get_field_index")(py::str(name)).cast<int>();
+        if (index < 0) {
+            missing.push_back(name);
+        }
+    }
+    if (missing.empty()) {
+        return;
+    }
+
+    std::string message;
+    if (missing.size() == 1) {
+        message = "Column '" + missing[0] + "' does not exist in schema.";
+    } else {
+        message = "Columns ";
+        for (size_t i = 0; i < missing.size(); ++i) {
+            if (i > 0) {
+                message += ", ";
+            }
+            message += "'" + missing[i] + "'";
+        }
+        message += " do not exist in schema.";
+    }
+    throw RuntimeException(message);
+}
+
+py::object selectArrowTableColumns(const py::object &table,
+                                   const std::vector<std::string> &colNames) {
+    ensureArrowTableColumnsExist(table, colNames);
+    py::list cols;
+    for (const auto &name : colNames) {
+        cols.append(py::str(name));
+    }
+    return table.attr("select")(cols);
+}
+
+py::object buildArrowTableFromArrowTable(const py::object &table,
+                                         const std::vector<std::string> &colNames,
+                                         const std::vector<ddb::Type> &colTypes) {
+    auto pa = converter::PyObjs::cache_->pyarrow_;
+    py::object selected = selectArrowTableColumns(table, colNames);
+    py::object schema = buildArrowSchema(colNames, colTypes);
+    py::list arrays;
+    for (size_t i = 0; i < colNames.size(); ++i) {
+        py::object field = schema.attr("__getitem__")(py::int_(static_cast<py::ssize_t>(i)));
+        py::object column = selected.attr("column")(py::int_(static_cast<py::ssize_t>(i)));
+        arrays.append(column.attr("cast")(field.attr("type")));
+    }
+    return pa.attr("table")(arrays, py::arg("schema") = schema);
+}
+
+py::object buildArrowTableForAppender(const py::object &table,
+                                      const std::vector<std::string> &colNames,
+                                      const std::vector<ddb::Type> &colTypes) {
+    if (!isPyArrowTable(table)) {
+        throw std::runtime_error("table must be a pyarrow.Table!");
+    }
+    return buildArrowTableFromArrowTable(table, colNames, colTypes);
+}
+
+py::object convertAppenderInputToDataFrame(const py::object &table,
+                                           const std::vector<std::string> &colNames) {
+    if (CHECK_INS(table, pd_dataframe_)) {
+        return table;
+    }
+    if (isPyArrowTable(table)) {
+        return selectArrowTableColumns(table, colNames).attr("to_pandas")();
+    }
+    throw std::runtime_error("table must be a DataFrame or pyarrow.Table!");
+}
+
+py::object applyArrowUploadTypeHints(const py::object &table, const py::dict &typeHints) {
+    if (!isPyArrowTable(table)) {
+        throw std::runtime_error("table must be a pyarrow.Table!");
+    }
+    ddb::TableChecker checker(typeHints);
+    if (checker.empty()) {
+        return table;
+    }
+
+    auto pa = converter::PyObjs::cache_->pyarrow_;
+    py::object schema = table.attr("schema");
+    py::list fields;
+    bool changed = false;
+    size_t numColumns = py::cast<size_t>(table.attr("num_columns"));
+    for (size_t i = 0; i < numColumns; ++i) {
+        py::object field = schema.attr("__getitem__")(py::int_(static_cast<py::ssize_t>(i)));
+        std::string name = py::cast<std::string>(field.attr("name"));
+        auto it = checker.find(name);
+        if (it != checker.end()) {
+            py::dict metadata = copyArrowMetadata(field.attr("metadata"));
+            setArrowTypeMetadata(metadata, it->second);
+            field = field.attr("with_metadata")(metadata);
+            changed = true;
+        }
+        fields.append(field);
+    }
+    if (!changed) {
+        return table;
+    }
+
+    py::object schemaMetadata = schema.attr("metadata");
+    py::object newSchema;
+    if (schemaMetadata.is_none()) {
+        newSchema = pa.attr("schema")(fields);
+    } else {
+        newSchema = pa.attr("schema")(fields, py::arg("metadata") = schemaMetadata);
+    }
+
+    py::list arrays;
+    for (size_t i = 0; i < numColumns; ++i) {
+        arrays.append(table.attr("column")(py::int_(static_cast<py::ssize_t>(i))));
+    }
+    return pa.attr("Table").attr("from_arrays")(arrays, py::arg("schema") = newSchema);
+}
+
+ddb::RequestArgument makeRequestArgument(const py::handle &obj, bool allowArrow) {
+    py::object pyobj = py::reinterpret_borrow<py::object>(obj);
+    if (isPyArrowTable(pyobj)) {
+        if (!allowArrow) {
+            throw std::runtime_error("pyarrow.Table upload requires protocol='arrow'.");
+        }
+        return ddb::RequestArgument::fromArrowTable(ddb::PythonObjectHolder(pyobj));
+    }
+    return ddb::RequestArgument(Converter::toDolphinDB(pyobj));
+}
+
+std::vector<ddb::RequestArgument> makeRequestArguments(const py::args &args, bool allowArrow) {
+    std::vector<ddb::RequestArgument> requestArgs;
+    requestArgs.reserve(args.size());
+    for (const auto &one : args) {
+        requestArgs.push_back(makeRequestArgument(one, allowArrow));
+    }
+    return requestArgs;
 }
 
 } // namespace
@@ -175,14 +439,10 @@ public:
             CATCH_EXCEPTION("<Exception> in run: ")
         } else {
             // function mode
-            std::vector<ddb::ConstantSP> ddbArgs;
-            for (const auto &one : args) {
-                py::object pyobj = py::reinterpret_borrow<py::object>(one);
-                ddb::ConstantSP pcp = Converter::toDolphinDB(pyobj);
-                ddbArgs.push_back(pcp);
-            }
-            TRY dbConnectionPool_.runPy(script, ddbArgs, taskId, priority_, parallelism_, 0, clearMemory_,
-                                        pickleTableToList_, disableDecimal_);
+            std::vector<ddb::RequestArgument> requestArgs =
+                makeRequestArguments(args, dbConnectionPool_.getProtocol() == ddb::PROTOCOL_ARROW);
+            TRY dbConnectionPool_.runPy(script, requestArgs, taskId, priority_, parallelism_, 0, clearMemory_,
+                                        ddb::REQUEST_FORMAT_AUTO, pickleTableToList_, disableDecimal_);
             CATCH_EXCEPTION("<Exception> in run: ")
         }
         return py::none();
@@ -222,6 +482,10 @@ public:
         return dbConnectionPool_;
     }
 
+    ddb::PROTOCOL getProtocol() const {
+        return dbConnectionPool_.getProtocol();
+    }
+
 private:
     ddb::DBConnectionPool dbConnectionPool_;
     std::string host_;
@@ -258,7 +522,7 @@ private:
 class EXPORT_DECL PartitionedTableAppender{
 public:
     PartitionedTableAppender(string dbUrl, string tableName, string partitionColName, DBConnectionPoolImpl& pool)
-    :partitionedTableAppender_(dbUrl,tableName,partitionColName,pool.getPool()){}
+    : partitionedTableAppender_(dbUrl,tableName,partitionColName,pool.getPool()){}
     int append(py::object table){
         if (!CHECK_INS(table, pd_dataframe_))
             throw std::runtime_error(std::string("table must be a DataFrame!"));
@@ -368,32 +632,24 @@ public:
 
     py::object upload(const py::dict &namedObjects) {
         vector<std::string> names;
-        vector<ddb::ConstantSP> objs;
+        vector<ddb::RequestArgument> objs;
+        bool allowArrow = isArrowProtocol(dbConnection_);
         for (auto it = namedObjects.begin(); it != namedObjects.end(); ++it) {
             if (!CHECK_INS(it->first, py_str_) && !CHECK_INS(it->first, py_bytes_)) {
                 throw std::runtime_error("non-string key in upload dictionary is not allowed");
             }
             names.push_back(it->first.cast<std::string>());
-            objs.push_back(Converter::toDolphinDB(it->second));
+            objs.push_back(makeRequestArgument(it->second, allowArrow));
         }
 
-        TRY ddb::ConstantSP addr;
+        TRY py::object addr;
         {
-            py::gil_scoped_release release;
-            addr = dbConnection_.upload(names, objs);
+            addr = dbConnection_.uploadPy(names, objs, ddb::REQUEST_FORMAT_AUTO);
         }
-        if (addr == NULL || addr->getType() == ddb::DT_VOID || addr->isNothing()) {
+        if (addr.is_none()) {
             return py::int_(-1);
-        } else if (addr->isScalar()) {
-            return py::int_(addr->getLong());
-        } else {
-            size_t size = addr->size();
-            py::list pyAddr;
-            for (size_t i = 0; i < size; ++i) {
-                pyAddr.append(py::int_(addr->getLong(i)));
-            }
-            return pyAddr;
         }
+        return addr;
         CATCH_EXCEPTION("<Exception> in upload: ")
     }
 
@@ -499,12 +755,10 @@ public:
             CATCH_EXCEPTION("<Exception> in run: ")
         } else {
             // function mode
-            TRY std::vector<ddb::ConstantSP> ddbArgs;
-            for (const auto &it : args) {
-                ddbArgs.push_back(Converter::toDolphinDB(it));
-            }
-            result = dbConnection_.runPy(script, ddbArgs, priority_, parallelism_, 0, clearMemory_, pickleTableToList_,
-                                         disableDecimal_, withTableSchema_);
+            TRY std::vector<ddb::RequestArgument> requestArgs =
+                    makeRequestArguments(args, isArrowProtocol(dbConnection_));
+            result = dbConnection_.runPy(script, requestArgs, priority_, parallelism_, 0, clearMemory_,
+                                         ddb::REQUEST_FORMAT_AUTO, pickleTableToList_, disableDecimal_, withTableSchema_);
             CATCH_EXCEPTION("<Exception> in run: ")
         }
         return result;
@@ -680,12 +934,10 @@ public:
 
         py::object result;
         // function mode
-        TRY std::vector<ddb::ConstantSP> ddbArgs;
-        for (const auto &it : args) {
-            ddbArgs.push_back(Converter::toDolphinDB(it));
-        }
-        result = dbConnection_.runPy(func, ddbArgs, priority_, parallelism_, 0, clearMemory_, pickleTableToList_,
-                                        disableDecimal_, withTableSchema_);
+        TRY std::vector<ddb::RequestArgument> requestArgs =
+                makeRequestArguments(args, isArrowProtocol(dbConnection_));
+        result = dbConnection_.runPy(func, requestArgs, priority_, parallelism_, 0, clearMemory_,
+                                     ddb::REQUEST_FORMAT_AUTO, pickleTableToList_, disableDecimal_, withTableSchema_);
         CATCH_EXCEPTION("<Exception> in call: ")
         return result;
     }
@@ -842,10 +1094,10 @@ private:
 class EXPORT_DECL AutoFitTableAppender{
 public:
     AutoFitTableAppender(const std::string dbUrl, const std::string tableName, PyDBConnection & session)
-    : autoFitTableAppender_(dbUrl,tableName,session.getConnection()){}
+    : session_(session), autoFitTableAppender_(dbUrl,tableName,session.getConnection()){}
     int append(py::object table){
-        if (!CHECK_INS(table, pd_dataframe_))
-            throw std::runtime_error(std::string("table must be a DataFrame!"));
+        if (!CHECK_INS(table, pd_dataframe_) && !isPyArrowTable(table))
+            throw std::runtime_error(std::string("table must be a DataFrame or pyarrow.Table!"));
         int insertRows;
         vector<ddb::Type> colTypes = autoFitTableAppender_.getColTypes();
         vector<std::string> colNames = autoFitTableAppender_.getColNames();
@@ -854,11 +1106,33 @@ public:
             checker[colNames[i]] = colTypes[i];
         }
         TRY
-            insertRows = autoFitTableAppender_.append(Converter::toDolphinDB_Table_fromDataFrame(table, checker));
+            if (CHECK_INS(table, pd_dataframe_)) {
+                py::object dataFrame = convertAppenderInputToDataFrame(table, colNames);
+                insertRows = autoFitTableAppender_.append(
+                    Converter::toDolphinDB_Table_fromDataFrame(dataFrame, checker));
+            } else {
+                if (!isArrowProtocol(session_.getConnection())) {
+                    py::object dataFrame = convertAppenderInputToDataFrame(table, colNames);
+                    insertRows = autoFitTableAppender_.append(
+                        Converter::toDolphinDB_Table_fromDataFrame(dataFrame, checker));
+                    return insertRows;
+                }
+                py::object arrowTable =
+                    buildArrowTableForAppender(table, colNames, colTypes);
+                std::vector<ddb::RequestArgument> args;
+                args.emplace_back(
+                    ddb::RequestArgument::fromArrowTable(ddb::PythonObjectHolder(arrowTable)));
+                py::object result = session_.getConnection().runPy(
+                    autoFitTableAppender_.getAppendScript(), args, DEFAULT_PRIORITY,
+                    DEFAULT_PARALLELISM, 0, false,
+                    ddb::REQUEST_FORMAT_ARROW_RETURN_LIMIT);
+                insertRows = result.is_none() ? 0 : result.cast<int>();
+            }
         CATCH_EXCEPTION("<Exception> in append: ")
         return insertRows;
     }
 private:
+    PyDBConnection &session_;
     ddb::AutoFitTableAppender autoFitTableAppender_;
 };
 
@@ -866,12 +1140,12 @@ class EXPORT_DECL AutoFitTableUpsert{
 public:
     AutoFitTableUpsert(const std::string dbUrl, const std::string tableName, PyDBConnection & session,
                 bool ignoreNull = false, const py::list& keyColNames = py::list(0), const py::list& sortColumns = py::list(0))
-            : autoFitTableUpsert_(dbUrl,tableName,session.getConnection(),ignoreNull,
+            : session_(session), autoFitTableUpsert_(dbUrl,tableName,session.getConnection(),ignoreNull,
                         pylist2Stringvector(keyColNames).get(),
                         pylist2Stringvector(sortColumns).get()){}
     int upsert(py::object table){
-        if (!CHECK_INS(table, pd_dataframe_))
-            throw std::runtime_error(std::string("table must be a DataFrame!"));
+        if (!CHECK_INS(table, pd_dataframe_) && !isPyArrowTable(table))
+            throw std::runtime_error(std::string("table must be a DataFrame or pyarrow.Table!"));
         int insertRows = 0;
         vector<ddb::Type> colTypes = autoFitTableUpsert_.getColTypes();
         vector<std::string> colNames = autoFitTableUpsert_.getColNames();
@@ -880,7 +1154,28 @@ public:
             checker[colNames[i]] = colTypes[i];
         }
         TRY
-            insertRows = autoFitTableUpsert_.upsert(Converter::toDolphinDB_Table_fromDataFrame(table, checker));
+            if (CHECK_INS(table, pd_dataframe_)) {
+                py::object dataFrame = convertAppenderInputToDataFrame(table, colNames);
+                insertRows = autoFitTableUpsert_.upsert(
+                    Converter::toDolphinDB_Table_fromDataFrame(dataFrame, checker));
+            } else {
+                if (!isArrowProtocol(session_.getConnection())) {
+                    py::object dataFrame = convertAppenderInputToDataFrame(table, colNames);
+                    insertRows = autoFitTableUpsert_.upsert(
+                        Converter::toDolphinDB_Table_fromDataFrame(dataFrame, checker));
+                    return insertRows;
+                }
+                py::object arrowTable =
+                    buildArrowTableForAppender(table, colNames, colTypes);
+                std::vector<ddb::RequestArgument> args;
+                args.emplace_back(
+                    ddb::RequestArgument::fromArrowTable(ddb::PythonObjectHolder(arrowTable)));
+                py::object result = session_.getConnection().runPy(
+                    autoFitTableUpsert_.getUpsertScript(), args, DEFAULT_PRIORITY,
+                    DEFAULT_PARALLELISM, 0, false,
+                    ddb::REQUEST_FORMAT_ARROW_RETURN_LIMIT);
+                insertRows = result.is_none() ? 0 : result.cast<int>();
+            }
         CATCH_EXCEPTION("<Exception> in append: ")
         return insertRows;
     }
@@ -890,6 +1185,7 @@ private:
         for (py::handle o : pylist) { psites->emplace_back(py::cast<std::string>(o)); }
         return psites;
     }
+    PyDBConnection &session_;
     ddb::AutoFitTableUpsert autoFitTableUpsert_;
 };
 
@@ -1604,6 +1900,7 @@ py::object hashBucket(const py::object& obj, int nBucket) {
 PYBIND11_MODULE(_dolphindbcpp, m) {
     m.doc() = R"pbdoc(_dolphindbcpp: this is a C++ boosted DolphinDB Python API)pbdoc";
     m.def("init", &ddbinit);
+    m.def("setArrowUploadType", &applyArrowUploadTypeHints, py::arg("table"), py::arg("ddb_type"));
 
     m.def("_util_hash_bucket", &hashBucket);
 
@@ -1747,6 +2044,14 @@ PYBIND11_MODULE(_dolphindbcpp, m) {
         .def(py::init<>())
         .def_property_readonly("closed", &ddb::InputStreamWrapper::closed)
         .def("read", &ddb::InputStreamWrapper::read);
+
+    py::class_<ddb::OutputStreamWrapper>(m, "OutputStreamWrapper")
+        .def(py::init<>())
+        .def_property_readonly("closed", &ddb::OutputStreamWrapper::closed)
+        .def("writable", &ddb::OutputStreamWrapper::writable)
+        .def("write", &ddb::OutputStreamWrapper::write)
+        .def("flush", &ddb::OutputStreamWrapper::flush)
+        .def("close", &ddb::OutputStreamWrapper::close);
 
     py::class_<ddb::TableChecker>(m, "TableChecker")
         .def(py::init<const py::dict &>());

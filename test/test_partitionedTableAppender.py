@@ -1416,28 +1416,27 @@ class TestPartitionedTableAppender:
         date = np.array(['2021-06-12', '2021-06-13', '2021-06-13', '2021-06-14', '2021-06-14'], dtype="datetime64[ns]")
         sym = ['A1', 'A2', 'A3', 'A4', 'A5']
         ID = np.array([1, 2, 3, 4, 5], dtype="int32")
-        bool_av = [[np.nan, False, None, True, pd.NaT], [np.nan, False, None, True, pd.NaT],
-                   [np.nan, False, None, True, pd.NaT], [np.nan, False, None, True, pd.NaT],
-                   [np.nan, False, None, True, pd.NaT]]
-        char_av = [[np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT],
-                   [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT]]
-        short_av = [[np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT],
-                    [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT]]
-        int_av = [[np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT],
-                  [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT]]
-        long_av = [[np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT],
-                   [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT]]
-        float_av = [[np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT],
-                    [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT]]
-        double_av = [[np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT],
-                     [np.nan, 2, None, 4, pd.NaT], [np.nan, 2, None, 4, pd.NaT]]
+        bool_av = [[None, False, None, True, None], [None, False, None, True, None],
+                   [None, False, None, True, None], [None, False, None, True, None],
+                   [None, False, None, True, None]]
+        char_av = [[np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan],
+                   [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan]]
+        short_av = [[np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan],
+                    [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan]]
+        int_av = [[np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan],
+                  [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan]]
+        long_av = [[np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan],
+                   [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan]]
+        float_av = [[np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan],
+                    [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan]]
+        double_av = [[np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan],
+                     [np.nan, 2, np.nan, 4, np.nan], [np.nan, 2, np.nan, 4, np.nan]]
         df = pd.DataFrame(
             {'date': date, 'sym': sym, 'ID': ID, "bool_av": bool_av, "char_av": char_av, "short_av": short_av,
              "int_av": int_av,
              "long_av": long_av, "float_av": float_av, "double_av": double_av})
         appender = ddb.PartitionedTableAppender(db_name, "test", "date", pool)
         appender.append(df)
-        time.sleep(1)
         assert_frame_equal(df, self.conn.run(f"select * from loadTable('{db_name}',`test)"))
 
     @pytest.mark.parametrize('_compress', ["COMPRESS_OPEN", "COMPRESS_CLOSE"])

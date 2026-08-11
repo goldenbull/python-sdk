@@ -2212,16 +2212,28 @@ _create_And_Append_ArrayVector_With_PANDAS_ARROW(
     }
     case HT_FLOAT: {
         py::array_t<float> values = PyObjs::cache_->pd_series_(n_data.attr("values"), "dtype"_a=PyObjs::cache_->pd_arrow_dtype_(PyObjs::cache_->pa_float32_))
-                                        .attr("to_numpy")("dtype"_a="float32", "na_value"_a=FLT_NMIN);
+                                        .attr("to_numpy")("dtype"_a="float32", "na_value"_a=FLT_NMIN, "copy"_a=true);
         valVec = createVector(elemType, 0, size);
-        VectorAppendFloat(valVec, const_cast<float*>(values.data()), size);
+        std::vector<float> buf(values.data(), values.data() + values.size());
+        for (float &value : buf) {
+            if (std::isnan(value)) {
+                value = FLT_NMIN;
+            }
+        }
+        VectorAppendFloat(valVec, buf.data(), size);
         break;
     }
     case HT_DOUBLE: {
         py::array_t<double> values = PyObjs::cache_->pd_series_(n_data.attr("values"), "dtype"_a=PyObjs::cache_->pd_arrow_dtype_(PyObjs::cache_->pa_float64_))
-                                        .attr("to_numpy")("dtype"_a="float64", "na_value"_a=DBL_NMIN);
+                                        .attr("to_numpy")("dtype"_a="float64", "na_value"_a=DBL_NMIN, "copy"_a=true);
         valVec = createVector(elemType, 0, size);
-        VectorAppendDouble(valVec, const_cast<double*>(values.data()), size);
+        std::vector<double> buf(values.data(), values.data() + values.size());
+        for (double &value : buf) {
+            if (std::isnan(value)) {
+                value = DBL_NMIN;
+            }
+        }
+        VectorAppendDouble(valVec, buf.data(), size);
         break;
     }
     case HT_MONTH:

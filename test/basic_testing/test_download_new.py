@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from basic_testing.prepare import DataUtils
+from basic_testing.prepare import DataUtils, PANDAS_VERSION
 from basic_testing.utils import equalPlus
 from setup.settings import HOST, PORT, USER, PASSWD
 
@@ -225,14 +225,14 @@ class TestDownloadNew(object):
           np.datetime64('nat', 'ns')], "datetime64[ns]"],
         ["0.0f 3.14f 00f", [0., 3.14, np.nan], np.float32],
         ["0.0F 3.14F 00F", [0., 3.14, np.nan], np.float64],
-        ["'abc!@#中文 123' \"\"", ['abc!@#中文 123', ''], "object"],
+        ["'abc!@#中文 123' \"\"", ['abc!@#中文 123', ''], "object" if PANDAS_VERSION < (3, 0, 0) else 'str'],
         ["[uuid('5d212a78-cc48-e3b1-4235-b4d91473ee87'),uuid('00000000-0000-0000-0000-000000000000')]",
-         ['5d212a78-cc48-e3b1-4235-b4d91473ee87', '00000000-0000-0000-0000-000000000000'], "object"],
+         ['5d212a78-cc48-e3b1-4235-b4d91473ee87', '00000000-0000-0000-0000-000000000000'], "object" if PANDAS_VERSION < (3, 0, 0) else 'str'],
         ["[datehour('1970.01.01T00'),datehour(NULL)]", [np.datetime64('1970-01-01T00', 'h'), np.datetime64('nat', 'h')],
          "datetime64[ns]"],
-        ["[ipaddr('127.0.0.1'),ipaddr('0.0.0.0')]", ['127.0.0.1', '0.0.0.0'], "object"],
+        ["[ipaddr('127.0.0.1'),ipaddr('0.0.0.0')]", ['127.0.0.1', '0.0.0.0'], "object" if PANDAS_VERSION < (3, 0, 0) else 'str'],
         ["[int128('e1671797c52e15f763380b45e841ec32'),int128('00000000000000000000000000000000')]",
-         ['e1671797c52e15f763380b45e841ec32', '00000000000000000000000000000000'], "object"],
+         ['e1671797c52e15f763380b45e841ec32', '00000000000000000000000000000000'], "object" if PANDAS_VERSION < (3, 0, 0) else 'str'],
         ["[blob('abc!@#中文 123'),blob('')]", ['abc!@#中文 123'.encode(), b''], "object"],
         ["[decimal32(\"0\",3),decimal32('3.141',3)]", [Decimal('0.000'), Decimal('3.141')], "object"],
         ["[decimal64(\"0\",3),decimal64('3.141',3)]", [Decimal('0.000'), Decimal('3.141')], "object"],

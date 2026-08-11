@@ -12,6 +12,154 @@
 
 namespace dolphindb {
 
+namespace {
+
+constexpr long long ARROW_UPLOAD_SINGLE_BATCH_THRESHOLD_BYTES = 64LL * 1024 * 1024;
+constexpr long long ARROW_UPLOAD_TARGET_BATCH_BYTES = 32LL * 1024 * 1024;
+constexpr long long ARROW_UPLOAD_MIN_CHUNK_ROWS = 65536;
+constexpr long long ARROW_UPLOAD_MAX_CHUNK_ROWS = 1048576;
+constexpr char ARROW_UPLOAD_TOTAL_ROWS_METADATA_KEY[] = "ddbTotalRows";
+
+REQUEST_FORMAT resolveRequestFormat(PROTOCOL protocol, REQUEST_FORMAT requestFormat) {
+    if (requestFormat != REQUEST_FORMAT_AUTO) {
+        return requestFormat;
+    }
+    if (protocol == PROTOCOL_ARROW) {
+        return REQUEST_FORMAT_ARROW;
+    }
+    return REQUEST_FORMAT_DDB;
+}
+
+const char* protocolTypeToString(PROTOCOL protocol) {
+    switch (protocol) {
+    case PROTOCOL_DDB:
+        return "ddb";
+    case PROTOCOL_PICKLE:
+        return "pickle";
+    case PROTOCOL_ARROW:
+        return "arrow";
+    default:
+        return "unknown";
+    }
+}
+
+const char* requestFormatToString(REQUEST_FORMAT requestFormat) {
+    switch (requestFormat) {
+    case REQUEST_FORMAT_AUTO:
+        return "auto";
+    case REQUEST_FORMAT_DDB:
+        return "ddb";
+    case REQUEST_FORMAT_ARROW:
+        return "arrow";
+    case REQUEST_FORMAT_ARROW_RETURN_LIMIT:
+        return "arrow_return_limit";
+    default:
+        return "unknown";
+    }
+}
+
+void validateRequestArguments(const std::vector<RequestArgument>& args) {
+    for (const auto& arg : args) {
+        if (arg.isConstant() && arg.constant->containNotMarshallableObject()) {
+            throw IOException("The function argument or uploaded object is not marshallable.");
+        }
+    }
+}
+
+void writeSocketBytes(const DataOutputStreamSP& outStream, const char* buffer,
+                      size_t length, const std::string& context) {
+    size_t actualWritten = 0;
+    IO_ERR ret = outStream->write(buffer, length, actualWritten);
+    if (ret != OK) {
+        throw IOException(context + " with IO error type " + std::to_string(ret), ret);
+    }
+    if (actualWritten != length) {
+        throw IOException(context + " because only part of the payload was written.");
+    }
+}
+
+long long estimateArrowTableBytes(const py::object& table) {
+    try {
+        return table.attr("get_total_buffer_size")().cast<long long>();
+    } catch (const py::error_already_set&) {
+        return table.attr("nbytes").cast<long long>();
+    }
+}
+
+long long chooseArrowChunkRows(const py::object& table) {
+    const long long totalRows = table.attr("num_rows").cast<long long>();
+    if (totalRows <= 0) {
+        return 0;
+    }
+
+    const long long totalBytes = estimateArrowTableBytes(table);
+    if (totalBytes <= 0 || totalBytes <= ARROW_UPLOAD_SINGLE_BATCH_THRESHOLD_BYTES) {
+        return 0;
+    }
+
+    const long long averageRowBytes = std::max(1LL, totalBytes / totalRows);
+    long long chunkRows = ARROW_UPLOAD_TARGET_BATCH_BYTES / averageRowBytes;
+    chunkRows = std::max(ARROW_UPLOAD_MIN_CHUNK_ROWS, chunkRows);
+    chunkRows = std::min(ARROW_UPLOAD_MAX_CHUNK_ROWS, chunkRows);
+    if (chunkRows >= totalRows) {
+        return 0;
+    }
+    return chunkRows;
+}
+
+py::object attachArrowUploadMetadata(const py::object& table) {
+    py::object schema = table.attr("schema");
+    py::dict metadata;
+    py::object existingMetadata = schema.attr("metadata");
+    if (!existingMetadata.is_none()) {
+        metadata = py::dict(existingMetadata);
+    }
+    metadata[py::bytes(ARROW_UPLOAD_TOTAL_ROWS_METADATA_KEY)] =
+        py::bytes(std::to_string(table.attr("num_rows").cast<long long>()));
+    return table.attr("replace_schema_metadata")(metadata);
+}
+
+void streamArrowTableArgument(const RequestArgument& arg,
+                              const DataOutputStreamSP& outStream) {
+    if (!arg.isArrowTable() || !arg.pythonObject) {
+        throw IOException("Invalid Arrow request argument.");
+    }
+    short flag = static_cast<short>(((DF_TABLE + 32) << 8) | BASICTBL);
+    writeSocketBytes(outStream, reinterpret_cast<const char*>(&flag), sizeof(flag),
+                     "Couldn't send Arrow object flag to the remote host");
+
+    py::gil_scoped_acquire acquire;
+    py::object bufferSink = converter::PyObjs::cache_->pyarrow_.attr("BufferOutputStream")();
+    py::object table = attachArrowUploadMetadata(arg.pythonObject.get());
+    py::object writer = converter::PyObjs::cache_->pyarrow_.attr("ipc").attr("RecordBatchStreamWriter")(
+        bufferSink, table.attr("schema"));
+    const long long chunkRows = chooseArrowChunkRows(table);
+    if (chunkRows > 0) {
+        writer.attr("write_table")(table, py::arg("max_chunksize") = chunkRows);
+    } else {
+        writer.attr("write_table")(table);
+    }
+    writer.attr("close")();
+
+    py::object payload = bufferSink.attr("getvalue")().attr("to_pybytes")();
+    char* buffer = nullptr;
+    py::ssize_t length = 0;
+    if (PyBytes_AsStringAndSize(payload.ptr(), &buffer, &length) < 0) {
+        throw py::error_already_set();
+    }
+    if (length > 0) {
+        writeSocketBytes(outStream, buffer, static_cast<size_t>(length),
+                         "Couldn't send Arrow payload to the remote host");
+    }
+    IO_ERR flushRet = outStream->flush();
+    if (flushRet != OK) {
+        throw IOException("Couldn't flush Arrow payload to the remote host with IO error type " +
+                          std::to_string(flushRet), flushRet);
+    }
+}
+
+}  // namespace
+
 DdbInit DBConnectionImpl::ddbInit_;
 DBConnectionImpl::DBConnectionImpl(bool sslEnable, bool asynTask, int keepAliveTime, bool compress, PARSER_TYPE parser, bool isReverseStreaming, int sqlStd)
 		: port_(0), encrypted_(false), isConnected_(false), littleEndian_(Util::isLittleEndian()),
@@ -204,10 +352,10 @@ py::object DBConnectionImpl::runPy(
     int parallelism, int fetchSize, bool clearMemory,
     bool pickleTableToList, bool disableDecimal, bool withTableSchema
 ) {
-    vector<ConstantSP> args;
+    vector<RequestArgument> args;
     return runPy(
         script, "script", args, priority, parallelism,
-        fetchSize, clearMemory, pickleTableToList, disableDecimal, withTableSchema
+        fetchSize, clearMemory, REQUEST_FORMAT_AUTO, pickleTableToList, disableDecimal, withTableSchema
     );
 }
 
@@ -216,10 +364,45 @@ py::object DBConnectionImpl::runPy(
     int parallelism, int fetchSize, bool clearMemory,
     bool pickleTableToList, bool disableDecimal, bool withTableSchema
 ) {
+    vector<RequestArgument> requestArgs;
+    requestArgs.reserve(args.size());
+    for (const auto& arg : args) {
+        requestArgs.emplace_back(arg);
+    }
     return runPy(
-        funcName, "function", args, priority, parallelism,
-        fetchSize, clearMemory, pickleTableToList, disableDecimal, withTableSchema
+        funcName, "function", requestArgs, priority, parallelism,
+        fetchSize, clearMemory, REQUEST_FORMAT_AUTO, pickleTableToList, disableDecimal, withTableSchema
     );
+}
+
+py::object DBConnectionImpl::runPy(
+    const string &funcName, vector<RequestArgument> &args, int priority,
+    int parallelism, int fetchSize, bool clearMemory, REQUEST_FORMAT requestFormat,
+    bool pickleTableToList, bool disableDecimal, bool withTableSchema
+) {
+    return runPy(
+        funcName, "function", args, priority, parallelism, fetchSize, clearMemory,
+        requestFormat, pickleTableToList, disableDecimal, withTableSchema
+    );
+}
+
+py::object DBConnectionImpl::uploadPy(vector<string>& names, vector<RequestArgument>& objs,
+                                      REQUEST_FORMAT requestFormat) {
+    if (names.size() != objs.size())
+        throw RuntimeException("the size of variable names doesn't match the size of objects.");
+    if (names.empty())
+        return py::none();
+
+    string varNames;
+    for (unsigned int i = 0; i < names.size(); ++i) {
+        if (!Util::isVariableCandidate(names[i]))
+            throw RuntimeException(names[i] + " is not a qualified variable name.");
+        if (i > 0)
+            varNames.append(1, ',');
+        varNames.append(names[i]);
+    }
+    return runPy(varNames, "variable", objs, 4, 64, 0, false,
+                 requestFormat, false, false, false);
 }
 
 ConstantSP DBConnectionImpl::upload(const string& name, const ConstantSP& obj) {
@@ -246,7 +429,8 @@ ConstantSP DBConnectionImpl::upload(vector<string>& names, vector<ConstantSP>& o
     return run(varNames, "variable", objs);
 }
 
-long DBConnectionImpl::generateRequestFlag(bool clearSessionMemory, bool disableprotocol, bool pickleTableToList, bool disableDecimal) {
+long DBConnectionImpl::generateRequestFlag(bool clearSessionMemory, REQUEST_FORMAT requestFormat,
+                                           bool pickleTableToList, bool disableDecimal) {
     long flag = 32; //32 API client
     if (asynTask_) {
         flag += 4;
@@ -254,23 +438,33 @@ long DBConnectionImpl::generateRequestFlag(bool clearSessionMemory, bool disable
     if (clearSessionMemory) {
         flag += 16;
     }
-    if (protocol_ == PROTOCOL_DDB || disableprotocol) {
-        if (compress_)
-            flag += 64;
-    }
-    else if (protocol_ == PROTOCOL_PICKLE) {
+    REQUEST_FORMAT effectiveFormat = resolveRequestFormat(protocol_, requestFormat);
+    if (protocol_ == PROTOCOL_PICKLE && requestFormat == REQUEST_FORMAT_AUTO) {
         DLOG("pickle",pickleTableToList?"toList":"");
         flag += 8;
         if (pickleTableToList) {
             flag += (1 << 15);
         }
     }
-    else if (protocol_ == PROTOCOL_ARROW) {
+    else if (effectiveFormat == REQUEST_FORMAT_DDB) {
+        if (compress_)
+            flag += 64;
+    }
+    else if (effectiveFormat == REQUEST_FORMAT_ARROW) {
         DLOG("arrow");
         flag += (1 << 15);
     }
+    else if (effectiveFormat == REQUEST_FORMAT_ARROW_RETURN_LIMIT) {
+        DLOG("arrow returnLimit");
+        flag += (1 << 15);
+        flag += (1 << 18);
+    }
     else {
-        throw RuntimeException("unsupport PROTOCOL Type: " + std::to_string(protocol_));
+        throw RuntimeException(
+            "Unsupported request format for PROTOCOL Type '" +
+            std::string(protocolTypeToString(protocol_)) +
+            "'. request format='" + std::string(requestFormatToString(effectiveFormat)) +
+            "' (" + std::to_string(static_cast<int>(effectiveFormat)) + ").");
     }
     if (parser_ == PARSER_TYPE::PARSER_PYTHON) {
         flag += 2048;
@@ -310,7 +504,7 @@ ConstantSP DBConnectionImpl::run(const string& script, const string& scriptType,
     }
     string out("API2 " + sessionId_ + " ");
     out.append(Util::convert((int)body.size()));
-    out.append(" / " + std::to_string(generateRequestFlag(clearMemory,true)) + "_1_" + std::to_string(priority) + "_" + std::to_string(parallelism));
+    out.append(" / " + std::to_string(generateRequestFlag(clearMemory, REQUEST_FORMAT_DDB)) + "_1_" + std::to_string(priority) + "_" + std::to_string(parallelism));
     out.append("__" + std::to_string(fetchSize));
     out.append(1, '\n');
     out.append(body);
@@ -457,9 +651,9 @@ py::dict getTableSchema(ConstantSP result)
 }
 
 py::object DBConnectionImpl::runPy(
-    const string &script, const string &scriptType, vector<ConstantSP> &args,
+    const string &script, const string &scriptType, vector<RequestArgument> &args,
     int priority, int parallelism, int fetchSize, bool clearMemory,
-    bool pickleTableToList, bool disableDecimal, bool withTableSchema
+    REQUEST_FORMAT requestFormat, bool pickleTableToList, bool disableDecimal, bool withTableSchema
 ) {
     //RecordTime record("Db.runPy"+script);
     DLOG("runPy",script,"start argsize",args.size());
@@ -481,7 +675,7 @@ py::object DBConnectionImpl::runPy(
     }
     string out("API2 " + sessionId_ + " ");
     out.append(Util::convert((int)body.size()));
-    long flag = generateRequestFlag(clearMemory, false, pickleTableToList, disableDecimal);
+    long flag = generateRequestFlag(clearMemory, requestFormat, pickleTableToList, disableDecimal);
     DLOG("runPy flag: ", flag);
     DLOG("protocol: ", protocol_, " pickleTableToList: ", pickleTableToList);
     DLOG("compress: ", compress_, " parser: ", parser_, " disableDecimal: ", disableDecimal);
@@ -496,22 +690,35 @@ py::object DBConnectionImpl::runPy(
 
     IO_ERR ret;
     if (argCount > 0) {
-        for (int i = 0; i < argCount; ++i) {
-            if (args[i]->containNotMarshallableObject()) {
-                throw IOException("The function argument or uploaded object is not marshallable.");
-            }
-        }
+        validateRequestArguments(args);
         DataOutputStreamSP outStream = new DataOutputStream(conn_);
         ConstantMarshallFactory marshallFactory(outStream);
-        bool enableCompress = false;
+        bool requestHeaderWritten = false;
         for (int i = 0; i < argCount; ++i) {
-            enableCompress = (args[i]->getForm() == DATA_FORM::DF_TABLE) ? compress_ : false;
-            ConstantMarshall* marshall = marshallFactory.getConstantMarshall(args[i]->getForm());
-            if (i == 0)
-                marshall->start(out.c_str(), out.size(), args[i], true, enableCompress,ret);
-            else
-                marshall->start(args[i], true, enableCompress,ret);
-            marshall->reset();
+            if (!requestHeaderWritten &&
+                (args[i].isRaw() || args[i].isArrowTable())) {
+                writeSocketBytes(outStream, out.c_str(), out.size(),
+                                 "Couldn't send script/function header to the remote host");
+                requestHeaderWritten = true;
+            }
+            if (args[i].isRaw()) {
+                size_t actualWritten = 0;
+                ret = outStream->write(args[i].raw.data(), args[i].raw.size(), actualWritten);
+            } else if (args[i].isArrowTable()) {
+                streamArrowTableArgument(args[i], outStream);
+                ret = OK;
+            } else {
+                ConstantSP &constantArg = args[i].constant;
+                bool enableCompress = (constantArg->getForm() == DATA_FORM::DF_TABLE) ? compress_ : false;
+                ConstantMarshall* marshall = marshallFactory.getConstantMarshall(constantArg->getForm());
+                if (!requestHeaderWritten) {
+                    marshall->start(out.c_str(), out.size(), constantArg, true, enableCompress, ret);
+                    requestHeaderWritten = true;
+                } else {
+                    marshall->start(constantArg, true, enableCompress, ret);
+                }
+                marshall->reset();
+            }
             if (ret != OK) {
                 close();
                 throw IOException("Couldn't send function argument to the remote host with IO error type " + std::to_string(ret), ret);

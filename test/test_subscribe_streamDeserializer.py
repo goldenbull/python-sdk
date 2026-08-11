@@ -140,12 +140,16 @@ class TestSubscribeStreamDeserializer(object):
         df1['dataType'] = df1['dataType'].astype(dtype[dataType])
         df2['dataType'] = df2['dataType'].astype(dtype[dataType])
         if dataType == 'STRING':
+            df_expect["dataType"] = df_expect["dataType"].astype("object")
             df_expect = df_expect.replace("", None)
         elif dataType == 'UUID':
+            df_expect["dataType"] = df_expect["dataType"].astype("object")
             df_expect = df_expect.replace("00000000-0000-0000-0000-000000000000", None)
         elif dataType == 'IPADDR':
+            df_expect["dataType"] = df_expect["dataType"].astype("object")
             df_expect = df_expect.replace("0.0.0.0", None)
         elif dataType == 'INT128':
+            df_expect["dataType"] = df_expect["dataType"].astype("object")
             df_expect = df_expect.replace("00000000000000000000000000000000", None)
         elif dataType == "BLOB":
             df_expect = df_expect.replace(b"", None)

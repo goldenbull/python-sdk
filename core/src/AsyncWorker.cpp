@@ -23,7 +23,9 @@ void AsyncWorker::run() {
                 if(task.isPyTask){
                     py::gil_scoped_acquire gil;
                     if(task.isFunc){
-                        pyResult = conn_->runPy(task.script, task.arguments, task.priority, task.parallelism, 0, task.clearMemory, task.pickleTableToList, task.disableDecimal);
+                        pyResult = conn_->runPy(task.script, task.arguments, task.priority, task.parallelism, 0,
+                                                task.clearMemory, task.requestFormat, task.pickleTableToList,
+                                                task.disableDecimal);
                     }
                     else{
                         pyResult = conn_->runPy(task.script, task.priority, task.parallelism, 0, task.clearMemory,task.pickleTableToList, task.disableDecimal);
@@ -31,7 +33,15 @@ void AsyncWorker::run() {
                 }
                 else {
                     if(task.isFunc){
-                        result = conn_->run(task.script, task.arguments, task.priority, task.parallelism, 0, task.clearMemory);
+                        std::vector<ConstantSP> args;
+                        args.reserve(task.arguments.size());
+                        for (const auto& arg : task.arguments) {
+                            if (!arg.isConstant()) {
+                                throw RuntimeException("Non-ConstantSP arguments are only supported for Python tasks.");
+                            }
+                            args.push_back(arg.constant);
+                        }
+                        result = conn_->run(task.script, args, task.priority, task.parallelism, 0, task.clearMemory);
                     }
                     else{
                         result = conn_->run(task.script, task.priority, task.parallelism, 0, task.clearMemory);

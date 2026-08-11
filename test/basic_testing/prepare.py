@@ -949,10 +949,10 @@ class DataUtils(object):
         'string': {
             'value': "'abc!@#中文 123'",
             'expect': 'abc!@#中文 123',
-            'dtype': 'object',
+            'dtype': 'object' if PANDAS_VERSION < (3, 0, 0) else 'str',
             'contain_none': {
                 'expect': '',
-                'dtype': 'object',
+                'dtype': 'object' if PANDAS_VERSION < (3, 0, 0) else 'str',
             },
             'ddbtype': 'STRING',
         },
@@ -961,10 +961,10 @@ class DataUtils(object):
         'uuid': {
             'value': "uuid('5d212a78-cc48-e3b1-4235-b4d91473ee87')",
             'expect': '5d212a78-cc48-e3b1-4235-b4d91473ee87',
-            'dtype': 'object',
+            'dtype': 'object' if PANDAS_VERSION < (3, 0, 0) else 'str',
             'contain_none': {
                 'expect': '00000000-0000-0000-0000-000000000000',
-                'dtype': 'object',
+                'dtype': 'object' if PANDAS_VERSION < (3, 0, 0) else 'str',
             },
             'ddbtype': 'UUID',
         },
@@ -995,10 +995,10 @@ class DataUtils(object):
         'ipaddr': {
             'value': "ipaddr('127.0.0.1')",
             'expect': '127.0.0.1',
-            'dtype': 'object',
+            'dtype': 'object' if PANDAS_VERSION < (3, 0, 0) else 'str',
             'contain_none': {
                 'expect': '0.0.0.0',
-                'dtype': 'object',
+                'dtype': 'object' if PANDAS_VERSION < (3, 0, 0) else 'str',
             },
             'ddbtype': 'IPADDR',
         },
@@ -1007,10 +1007,10 @@ class DataUtils(object):
         'int128': {
             'value': "int128('e1671797c52e15f763380b45e841ec32')",
             'expect': 'e1671797c52e15f763380b45e841ec32',
-            'dtype': 'object',
+            'dtype': 'object' if PANDAS_VERSION < (3, 0, 0) else 'str',
             'contain_none': {
                 'expect': '00000000000000000000000000000000',
-                'dtype': 'object',
+                'dtype': 'object' if PANDAS_VERSION < (3, 0, 0) else 'str',
             },
             'ddbtype': 'INT128',
         },
@@ -1428,7 +1428,7 @@ class DataUtils(object):
                 'expect_value': "decimal128('0.00',2)",
             },
             'data_arrow_decimal128_nan': {
-                'value': Decimal('nan'),
+                'value': None,
                 'dtype_arrow': pa.decimal128(3, 2),
                 'expect_typestr': "'FAST DECIMAL128 VECTOR'",
                 'expect_value': "decimal64(NULL,2)",
@@ -7339,8 +7339,22 @@ class DataUtils(object):
                     'long_none',
                     'float_none',
                     'double_none',
+                    'string',
+                    'uuid',
+                    'ipaddr',
+                    'int128',
                 )
             }
+            rtn.update({k: {
+                'value': f"[{v['value']},{v['value']},{v['value']}]",
+                'expect': np.array([v['expect'], v['expect'], v['expect']], dtype='object'),
+            } for k, v in cls.DATA_DOWNLOAD.items()
+                if k in (
+                    'string',
+                    'uuid',
+                    'ipaddr',
+                    'int128',
+                )})
             rtn.update({k: {
                 'value': f"[{v['value']},{v['value']},{v['value']}]",
                 'expect': np.array([np.nan, np.nan, np.nan], dtype=np.float64),
@@ -7487,8 +7501,24 @@ class DataUtils(object):
                     'long_none',
                     'float_none',
                     'double_none',
+                    'string',
+                    'uuid',
+                    'ipaddr',
+                    'int128',
                 )
             }
+            rtn.update({k: {
+                'value': f"[NULL,{v['value']},{v['value']}]",
+                'expect': np.array([v['contain_none']['expect'], v['expect'], v['expect']],
+                                   dtype='object')
+            } for k, v in cls.DATA_DOWNLOAD.items()
+                if k in (
+                    'string',
+                    'uuid',
+                    'ipaddr',
+                    'int128',
+                )
+            })
             rtn.update({
                 'any': {
                     'value': '(NULL,2,3)',
@@ -8588,8 +8618,24 @@ class DataUtils(object):
             } for k, v in cls.DATA_DOWNLOAD.items()
                 if k not in (
                     'void',
+                    # 'string',
+                    # 'uuid',
+                    # 'ipaddr',
+                    # 'int128',
                 )
             }
+            # rtn.update({k: {
+            #     'value': f"table([{v['value']},NULL] as a)",
+            #     'expect': pd.DataFrame({'a': [v['expect'], v['contain_none']['expect']]},
+            #                            dtype='object'),
+            # } for k, v in cls.DATA_DOWNLOAD.items()
+            #     if k in (
+            #         'string',
+            #         'uuid',
+            #         'ipaddr',
+            #         'int128',
+            #     )
+            # })
             return rtn
 
     @classmethod
@@ -8755,7 +8801,7 @@ class DataUtils(object):
                         'expect_typestr': "'STRING VECTOR'",
                         'expect_value': "table([\"0\",\"1\",\"\"] as `a)",
                     }
-                if PANDAS_VERSION >= (2, 1, 0):
+                if (2, 1, 0) <= PANDAS_VERSION < (3, 0, 0):
                     rtn['table_extension_string_pyarrow_numpy'] = {
                         'value': pd.DataFrame({'a': ["0", "1", None]}, dtype=pd.StringDtype(storage="pyarrow_numpy")),
                         'expect_typestr': "'STRING VECTOR'",
@@ -8826,8 +8872,22 @@ class DataUtils(object):
                     'long_none',
                     'string',
                     'blob',
+                    'uuid',
+                    'ipaddr',
+                    'int128',
                 )
             }
+            rtn.update({
+                f'arrayVector_{k}': {
+                    'value': f"x=array({v['ddbtype']}[],0,3).append!([[{v['value']},{v['value']}],[{v['value']},{v['value']}],[{v['value']},{v['value']}]]);x",
+                    'expect': np.array([v['expect'], v['expect']], dtype='object'),
+                } for k, v in cls.DATA_DOWNLOAD.items()
+                if k in (
+                    'uuid',
+                    'ipaddr',
+                    'int128',
+                )
+            })
             rtn.update({
                 f'arrayVector_{k}': {
                     'value': f"x=array({v['ddbtype']}[],0,3).append!([[{v['value']},{v['value']}],[{v['value']},{v['value']}],[{v['value']},{v['value']}]]);x",
@@ -8856,8 +8916,22 @@ class DataUtils(object):
                     'void',
                     'string',
                     'blob',
+                    'uuid',
+                    'ipaddr',
+                    'int128',
                 )
             }
+            rtn.update({
+                f'arrayVector_{k}': {
+                    'value': f"x=array({v['ddbtype']}[],0,3).append!([[{v['value']},null],[{v['value']},null],[{v['value']},null]]);x",
+                    'expect': np.array([v['expect'], v['contain_none']['expect']], dtype='object'),
+                } for k, v in cls.DATA_DOWNLOAD.items()
+                if k in (
+                    'uuid',
+                    'ipaddr',
+                    'int128',
+                )
+            })
             return rtn
 
     @classmethod
@@ -8944,8 +9018,25 @@ class DataUtils(object):
                     'short_none',
                     'int_none',
                     'long_none',
+                    'uuid',
+                    'ipaddr',
+                    'int128',
                 )
             }
+            rtn.update({
+                f'arrayVectorTable_{k}': {
+                    'value': f"x=array({v['ddbtype']}[],0,3).append!([[{v['value']},{v['value']}],[{v['value']},{v['value']}],[{v['value']},{v['value']}]]);table(x as `a)",
+                    'expect': pd.DataFrame({'a': [np.array([v['expect'], v['expect']], dtype='object'),
+                                                  np.array([v['expect'], v['expect']], dtype='object'),
+                                                  np.array([v['expect'], v['expect']], dtype='object')]},
+                                           dtype='object'),
+                } for k, v in cls.DATA_DOWNLOAD.items()
+                if k in (
+                    'uuid',
+                    'ipaddr',
+                    'int128',
+                )
+            })
             rtn.update({
                 f'arrayVectorTable_{k}': {
                     'value': f"x=array({v['ddbtype']}[],0,3).append!([[{v['value']},{v['value']}],[{v['value']},{v['value']}],[{v['value']},{v['value']}]]);table(x as `a)",
@@ -9216,7 +9307,7 @@ class DataUtils(object):
             return {**arrayVector_firstNone, **arrayVector_middleNone, **arrayVector_lastNone,
                     **arrayVector_innerNone_first, **arrayVector_innerNone_middle, **arrayVector_innerNone_last}
         else:
-            return {
+            rtn = {
                 f'arrayVectorTable_contain_none_{k}': {
                     'value': f"x=array({v['ddbtype']}[],0,3).append!([[{v['value']},null],[{v['value']},null],[{v['value']},null]]);table(x as `a)",
                     'expect': pd.DataFrame(
@@ -9229,8 +9320,27 @@ class DataUtils(object):
                     'void',
                     'string',
                     'blob',
+                    'uuid',
+                    'ipaddr',
+                    'int128',
                 )
             }
+            rtn.update({
+                f'arrayVectorTable_contain_none_{k}': {
+                    'value': f"x=array({v['ddbtype']}[],0,3).append!([[{v['value']},null],[{v['value']},null],[{v['value']},null]]);table(x as `a)",
+                    'expect': pd.DataFrame(
+                        {'a': [np.array([v['expect'], v['contain_none']['expect']], dtype='object'),
+                               np.array([v['expect'], v['contain_none']['expect']], dtype='object'),
+                               np.array([v['expect'], v['contain_none']['expect']], dtype='object')]},
+                        dtype='object'),
+                } for k, v in cls.DATA_DOWNLOAD.items()
+                if k in (
+                    'uuid',
+                    'ipaddr',
+                    'int128',
+                )
+            })
+            return rtn
 
     @classmethod
     def getArrayVectorTableSpecial(cls, _type):

@@ -15,6 +15,7 @@ from dolphindb.streaming import SubscribeInfo
 from basic_testing.utils import equalPlus
 from setup.settings import HOST, PORT, USER, PASSWD, HOST_CLUSTER, PORT_DNODE1, USER_CLUSTER, PASSWD_CLUSTER, \
     HA_STREAM_GROUP_ID, PORT_CNODE1, PORT_DNODE2, PORT_DNODE3
+from basic_testing.prepare import PANDAS_VERSION
 
 
 class TestSubscribeInfo(object):
@@ -167,7 +168,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -206,7 +207,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -254,7 +255,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -293,7 +294,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -345,7 +346,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -397,7 +398,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -436,7 +437,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -502,7 +503,9 @@ class TestThreadedClient(object):
         topic = client.subscribe(host=HOST, port=PORT, handler=handler, table_name=func_name, offset=0,
                                  msg_as_table=False, userid=USER, password=PASSWD)
         assert wait_until(10)
-        assert equalPlus(df, conn.run(func_name))
+        expect = conn.run(func_name)
+        expect['symbolv'] = expect['symbolv'].astype('object')
+        assert equalPlus(df, expect)
         client.unsubscribe(subscribe_info=topic)
 
     @pytest.mark.parametrize("port", [0, -1])
@@ -545,7 +548,9 @@ class TestThreadedClient(object):
         topic = client.subscribe(host=HOST, port=PORT, handler=handler, table_name=func_name, offset=0,
                                  msg_as_table=True, batch_size=1000, throttle=1, userid=USER, password=PASSWD)
         assert wait_until(10)
-        assert equalPlus(df, conn.run(func_name))
+        expect = conn.run(func_name)
+        expect['symbolv'] = expect['symbolv'].astype('object')
+        assert equalPlus(df, expect)
         client.unsubscribe(subscribe_info=topic)
 
     @pytest.mark.parametrize("port", [0, -1])
@@ -561,7 +566,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -587,7 +592,12 @@ class TestThreadedClient(object):
         assert not wait_until(10)
         assert len(df) == 0
         assert wait_until(10)
-        assert equalPlus(df, conn.run(func_name))
+        expect = conn.run(func_name)
+        if PANDAS_VERSION >= (3, 0, 0):
+            expect['time'] = expect['time'].astype('object')
+            expect['sym'] = expect['sym'].astype('object')
+            expect['price'] = expect['price'].astype('object')
+        assert equalPlus(df, expect)
         client.unsubscribe(subscribe_info=topic)
 
     @pytest.mark.parametrize("port", [0, -1])
@@ -603,11 +613,11 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             go
             n = 10
-            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
-            t2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE]);
+            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
+            t2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE]);
             share t1 as {func_name}_1
             share t2 as {func_name}_2
             tableInsert({func_name}_1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n));
@@ -658,14 +668,14 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             n = 10;
             dbName = '{db_name}'
             if(existsDatabase(dbName))
                 dropDatabase(dbName)
             db = database(dbName,RANGE,2012.01.01 2013.01.01 2014.01.01 2015.01.01 2016.01.01 2017.01.01 2018.01.01 2019.01.01)
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE])
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE])
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n))
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n))
             pt1 = db.createPartitionedTable(table1,'pt1',`datetimev).append!(table1)
@@ -715,11 +725,11 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             go
             n = 10
-            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
-            t2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE]);
+            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
+            t2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE]);
             share t1 as {func_name}_1
             share t2 as {func_name}_2
             tableInsert({func_name}_1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n));
@@ -770,14 +780,14 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             n = 10;
             dbName = '{db_name}'
             if(existsDatabase(dbName))
                 dropDatabase(dbName)
             db = database(dbName,RANGE,2012.01.01 2013.01.01 2014.01.01 2015.01.01 2016.01.01 2017.01.01 2018.01.01 2019.01.01)
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE])
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE])
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n))
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n))
             pt1 = db.createPartitionedTable(table1,'pt1',`datetimev).append!(table1)
@@ -827,7 +837,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -865,7 +875,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -901,7 +911,7 @@ class TestThreadedClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1005,7 +1015,13 @@ class TestThreadedClient(object):
         topic = client.subscribe(host=HOST, port=PORT, handler=handler, table_name=func_name, offset=0,
                                  msg_as_table=True, batch_size=3, userid=USER, password=PASSWD)
         assert wait_until(3)
-        assert equalPlus(df, conn.run(func_name))
+        expect = conn.run(func_name)
+        expect["c_string"] = expect["c_string"].astype("object")
+        expect["c_symbol"] = expect["c_symbol"].astype("object")
+        expect["c_uuid"] = expect["c_uuid"].astype("object")
+        expect["c_ipaddr"] = expect["c_ipaddr"].astype("object")
+        expect["c_int128"] = expect["c_int128"].astype("object")
+        assert equalPlus(df, expect)
         client.unsubscribe(subscribe_info=topic)
 
     def test_threaded_client_type_not_support(self):
@@ -1032,7 +1048,7 @@ class TestThreadedClient(object):
             go
             use catalog {func_name}
             g=createStreamGraph("engine")
-            g.source("trades", ["time","sym","volume"], [TIMESTAMP, SYMBOL, INT])
+            g.source("trades", ["time","sym","volume"], [NANOTIMESTAMP, SYMBOL, INT])
             .timeSeriesEngine(windowSize=60000, step=60000, metrics=<[sum(volume)]>, timeColumn="time", useSystemTime=false, keyColumn="sym", useWindowStartTime=false)
             .sink("output")
             g.submit()
@@ -1061,7 +1077,9 @@ class TestThreadedClient(object):
         topic = client.subscribe(host=HOST, port=PORT, handler=handler, table_name=f"{func_name}.orca_table.output", msg_as_table=True, batch_size=4, offset=0, userid=USER, password=PASSWD)
         wait_until(4)
         client.unsubscribe(subscribe_info=topic)
-        assert equalPlus(df, conn.run(f"select * from {func_name}.orca_table.output"))
+        expect = conn.run(f"select * from {func_name}.orca_table.output")
+        expect["sym"] = expect["sym"].astype("object")
+        assert equalPlus(df, expect)
 
     @pytest.mark.CLUSTER
     @pytest.mark.xdist_group(name='cluster_test')
@@ -1076,7 +1094,7 @@ class TestThreadedClient(object):
             go
             use catalog {func_name}
             g=createStreamGraph("engine")
-            g.source("trades", ["time","sym","volume"], [TIMESTAMP, SYMBOL, INT])
+            g.source("trades", ["time","sym","volume"], [NANOTIMESTAMP, SYMBOL, INT])
             .timeSeriesEngine(windowSize=60000, step=60000, metrics=<[sum(volume)]>, timeColumn="time", useSystemTime=false, keyColumn="sym", useWindowStartTime=false)
             .sink("output")
             g.submit()
@@ -1106,7 +1124,9 @@ class TestThreadedClient(object):
         topic = client.subscribe(host=HOST_CLUSTER, port=port, handler=handler, table_name=f"{func_name}.orca_table.output", msg_as_table=True, batch_size=4, offset=0, userid=USER, password=PASSWD)
         wait_until(4)
         client.unsubscribe(subscribe_info=topic)
-        assert equalPlus(df, conn.run(f"select * from {func_name}.orca_table.output"))
+        expect = conn.run(f"select * from {func_name}.orca_table.output")
+        expect["sym"] = expect["sym"].astype("object")
+        assert equalPlus(df, expect)
 
 
 class TestThreadPooledClient(object):
@@ -1202,7 +1222,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1244,7 +1264,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1296,7 +1316,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1336,7 +1356,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1392,7 +1412,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1447,7 +1467,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1489,7 +1509,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1560,8 +1580,10 @@ class TestThreadPooledClient(object):
         topic = client.subscribe(host=HOST, port=PORT, handler=handler, table_name=func_name, offset=0,
                                  msg_as_table=False, userid=USER, password=PASSWD)
         assert wait_until(10)
+        expect = conn.run(f"select * from {func_name} order by symbolv asc")
+        expect["symbolv"] =expect["symbolv"].astype("object")
         assert equalPlus(df.sort_values("symbolv", ascending=True).reset_index(drop=True),
-                         conn.run(f"select * from {func_name} order by symbolv asc"))
+                         expect)
         client.unsubscribe(subscribe_info=topic)
 
     def test_thread_pooled_client_double_array_vector_msgAsTable_True(self):
@@ -1608,11 +1630,11 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             go
             n = 10
-            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
-            t2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE]);
+            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
+            t2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE]);
             share t1 as {func_name}_1
             share t2 as {func_name}_2
             tableInsert({func_name}_1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n));
@@ -1667,14 +1689,14 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             n = 10;
             dbName = '{db_name}'
             if(existsDatabase(dbName))
                 dropDatabase(dbName)
             db = database(dbName,RANGE,2012.01.01 2013.01.01 2014.01.01 2015.01.01 2016.01.01 2017.01.01 2018.01.01 2019.01.01)
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE])
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE])
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n))
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n))
             pt1 = db.createPartitionedTable(table1,'pt1',`datetimev).append!(table1)
@@ -1728,11 +1750,11 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             go
             n = 10
-            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
-            t2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE]);
+            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
+            t2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE]);
             share t1 as {func_name}_1
             share t2 as {func_name}_2
             tableInsert({func_name}_1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n));
@@ -1787,14 +1809,14 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             n = 10;
             dbName = '{db_name}'
             if(existsDatabase(dbName))
                 dropDatabase(dbName)
             db = database(dbName,RANGE,2012.01.01 2013.01.01 2014.01.01 2015.01.01 2016.01.01 2017.01.01 2018.01.01 2019.01.01)
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE])
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE])
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n))
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n))
             pt1 = db.createPartitionedTable(table1,'pt1',`datetimev).append!(table1)
@@ -1848,7 +1870,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1889,7 +1911,7 @@ class TestThreadPooledClient(object):
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), 1..10)
         """)
@@ -1980,17 +2002,17 @@ class TestThreadPooledClient(object):
                 array(DECIMAL128(8)[]).append!(cut(take(decimal128("3.14" "0" "nan",8),9),3)) as av_decimal128
             ) as {func_name}
         """)
-        df = conn.run(f"select * from {func_name} where 1==0")
+        columns = conn.run(f"select * from {func_name} where 1==0").columns
+        rows = []
         lock = Lock()
 
         def handler(data):
-            nonlocal df
             with lock:
-                df.loc[len(df)] = data
+                rows.append(data)
 
         def wait_until(len_, timeout=5):
             for i in range(timeout):
-                if len(df) >= len_:
+                if len(rows) >= len_:
                     break
                 sleep(1)
             else:
@@ -2001,6 +2023,16 @@ class TestThreadPooledClient(object):
         topic = client.subscribe(host=HOST, port=PORT, handler=handler, table_name=func_name, offset=0, userid=USER,
                                  password=PASSWD)
         assert wait_until(3)
+        df = pd.DataFrame(rows, columns=columns)
+        for col in ("c_char", "c_short", "c_int", "c_long"):
+            df[col] = pd.Series(
+                [None if pd.isna(value) else int(value) for value in df[col]],
+                dtype="object",
+            )
+        for col in (
+                "c_date", "c_month", "c_time", "c_minute", "c_seconde",
+                "c_datetime", "c_timestamp", "c_nanotime", "c_nanotimestamp", "c_datehour"):
+            df[col] = pd.to_datetime(df[col]).astype("datetime64[ns]")
         df_expect = pd.DataFrame({
             "c_bool": [True, False, None],
             "av_bool": [np.array([True, False, None], dtype="object") for i in range(3)],
@@ -2084,8 +2116,8 @@ class TestThreadPooledClient(object):
             "av_decimal128": [np.array([Decimal("3.14000000"), Decimal("0.00000000"), None], dtype="object") for i in
                               range(3)],
         })
-        assert equalPlus(df.sort_values("c_char", ascending=True).reset_index(drop=True),
-                         df_expect.sort_values("c_char", ascending=True).reset_index(drop=True))
+        expect = df_expect.sort_values("c_char", ascending=True).reset_index(drop=True)
+        assert equalPlus(df.sort_values("c_char", ascending=True).reset_index(drop=True), expect.sort_values("c_char", ascending=True).reset_index(drop=True))
         client.unsubscribe(subscribe_info=topic)
 
     def test_thread_pooled_client_type_not_support(self):
@@ -2112,7 +2144,7 @@ class TestThreadPooledClient(object):
             go
             use catalog {func_name}
             g=createStreamGraph("engine")
-            g.source("trades", ["time","sym","volume"], [TIMESTAMP, SYMBOL, INT])
+            g.source("trades", ["time","sym","volume"], [NANOTIMESTAMP, SYMBOL, INT])
             .timeSeriesEngine(windowSize=60000, step=60000, metrics=<[sum(volume)]>, timeColumn="time", useSystemTime=false, keyColumn="sym", useWindowStartTime=false)
             .sink("output")
             g.submit()
@@ -2159,7 +2191,7 @@ class TestThreadPooledClient(object):
             go
             use catalog {func_name}
             g=createStreamGraph("engine")
-            g.source("trades", ["time","sym","volume"], [TIMESTAMP, SYMBOL, INT])
+            g.source("trades", ["time","sym","volume"], [NANOTIMESTAMP, SYMBOL, INT])
             .timeSeriesEngine(windowSize=60000, step=60000, metrics=<[sum(volume)]>, timeColumn="time", useSystemTime=false, keyColumn="sym", useWindowStartTime=false)
             .sink("output")
             g.submit()
@@ -2251,6 +2283,53 @@ class TestHaStreaming(object):
         assert conn_leader.exec(f"each(eqObj, {func_name}.values(), {func_name}_result.values()).all()")
         client.unsubscribe(subscribe_info=topic)
         conn_leader.exec(f"dropStreamTable(\"{func_name}\")")
+
+    @pytest.mark.CLUSTER
+    @pytest.mark.xdist_group(name='cluster_test')
+    def test_threaded_client_orca_streaming_subscribe_on_leader_cluster(self):
+        func_name = inspect.currentframe().f_code.co_name
+        conn = ddb.DBConnection()
+        conn.connect(HOST_CLUSTER, PORT_CNODE1, USER_CLUSTER, PASSWD_CLUSTER)
+        conn.exec(f"""
+            if (existsCatalog("{func_name}"))
+                dropCatalog("{func_name}")
+            createCatalog("{func_name}")
+            go
+            use catalog {func_name}
+            g=createStreamGraph("engine")
+            g.source("trades", ["time","sym","volume"], [NANOTIMESTAMP, SYMBOL, INT])
+            .timeSeriesEngine(windowSize=60000, step=60000, metrics=<[sum(volume)]>, timeColumn="time", useSystemTime=false, keyColumn="sym", useWindowStartTime=false)
+            .sink("output")
+            g.submit()
+            times = [2018.10.08T01:01:01.785, 2018.10.08T01:01:02.125, 2018.10.08T01:01:10.263, 2018.10.08T01:01:12.457, 2018.10.08T01:02:10.789, 2018.10.08T01:02:12.005, 2018.10.08T01:02:30.021, 2018.10.08T01:04:02.236, 2018.10.08T01:04:04.412, 2018.10.08T01:04:05.152]
+            syms = [`A, `B, `B, `A, `A, `B, `A, `A, `B, `B]
+            volumes = [10, 26, 14, 28, 15, 9, 10, 29, 32, 23]
+            tmp = table(times as time, syms as sym, volumes as volume)
+            appendOrcaStreamTable("trades", tmp)
+        """)
+        df = conn.run(f"select * from {func_name}.orca_table.output where 1==0")
+
+        def handler(data):
+            nonlocal df
+            df = pd.concat([df, data], ignore_index=True)
+
+        def wait_until(len_, timeout=5):
+            for i in range(timeout):
+                if len(df) >= len_:
+                    break
+                sleep(1)
+            else:
+                return False
+            return True
+
+        port = conn.run(f"(exec port from getClusterPerf() where name = (exec site from getOrcaStreamTableMeta() where fqn = \"{func_name}.orca_table.output\") and mode = 0 limit 1)[0]")
+        client = ThreadedClient()
+        topic = client.subscribe(host=HOST_CLUSTER, port=port, handler=handler, table_name=f"{func_name}.orca_table.output", msg_as_table=True, batch_size=4, offset=0, userid=USER, password=PASSWD)
+        wait_until(4)
+        client.unsubscribe(subscribe_info=topic)
+        expect = conn.run(f"select * from {func_name}.orca_table.output")
+        expect["sym"] = expect["sym"].astype("object")
+        assert equalPlus(df, expect)
 
     @pytest.mark.CLUSTER
     @pytest.mark.xdist_group(name='cluster_test')

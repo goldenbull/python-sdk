@@ -66,11 +66,11 @@ class AutoFitTableAppender:
     def __del__(self):
         self.tableappender = None
 
-    def append(self, table: DataFrame) -> int:
+    def append(self, table) -> int:
         """Append data.
 
         Args:
-            table : data to be written.
+            table : data to be written. Supports pandas DataFrame and, with Arrow-enabled environments, pyarrow.Table.
 
         Returns:
             number of rows written.
@@ -158,11 +158,11 @@ class AutoFitTableUpserter(object):
     def __del__(self):
         self.tableupserter = None
 
-    def upsert(self, table: DataFrame):
+    def upsert(self, table):
         """upsert data.
 
         Args:
-            table : data to be written.
+            table : data to be written. Supports pandas DataFrame and, with Arrow-enabled environments, pyarrow.Table.
         """
         if self.sess.is_closed:
             raise RuntimeError("DBConnection has been closed.")

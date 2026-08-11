@@ -5742,7 +5742,7 @@ class TestCep(object):
                         pd.Series(["abc!@#中文 123", np.str_("abc!@#中文 123"), ""], dtype=pd.StringDtype("pyarrow")))
                     data.append(
                         pd.Series(["abc!@#中文 123", np.str_("abc!@#中文 123"), ""], dtype=pd.StringDtype("python")))
-                if PANDAS_VERSION >= (2, 1, 0):
+                if (2, 1, 0) <= PANDAS_VERSION < (3, 0, 0):
                     data.append(
                         pd.Series(["abc!@#中文 123", np.str_("abc!@#中文 123"), ""],
                                   dtype=pd.StringDtype("pyarrow_numpy")))
@@ -5797,7 +5797,7 @@ class TestCep(object):
                     expect.append(
                         EventVectorString(v_string=np.array(["abc!@#中文 123", "abc!@#中文 123", ""], dtype='object'),
                                           eventTime=np.datetime64('2024-03-25T12:30:05.013', 'ms')))
-                if PANDAS_VERSION >= (2, 1, 0):
+                if (2, 1, 0) <= PANDAS_VERSION < (3, 0, 0):
                     expect.append(
                         EventVectorString(v_string=np.array(["abc!@#中文 123", "abc!@#中文 123", ""], dtype='object'),
                                           eventTime=np.datetime64('2024-03-25T12:30:05.014', 'ms')))

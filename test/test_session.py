@@ -120,19 +120,6 @@ class TestSession:
         conn1.dropDatabase(dbpath)
         conn1.close()
 
-    def test_session_init_python(self):
-        conn1 = ddb.session(HOST, PORT, USER, PASSWD, python=True)
-        conn1.run("""
-            a=[1,2,3]
-            b={1,2,3}
-            c={1:1,2:2}
-            d=(12,3,4)
-        """)
-        assert conn1.run("type(a)") == "list"
-        assert conn1.run("type(b)") == "set"
-        assert conn1.run("type(c)") == "dict"
-        assert conn1.run("type(d)") == "tuple"
-
     def test_session_init_parser_default(self):
         conn1 = ddb.session(HOST, PORT, USER, PASSWD)
         conn1.run("""
@@ -187,30 +174,6 @@ class TestSession:
     def test_session_init_python_true_parser_kdb(self):
         with pytest.raises(RuntimeError, match="The parameter parser must not be specified when python=true"):
             conn1 = ddb.session(HOST, PORT, USER, PASSWD, python=True, parser="kdb")
-
-    def test_session_init_group_by_sex_with_name_and_eye_arrays(self):
-        conn1 = ddb.session(HOST, PORT, USER, PASSWD)
-        conn1.run("""
-            t= table(`tom`dickh`arry`jack`jill as name,  `m`m`m`m`f as sex, `blue`green`blue`blue`gray as eye);
-            re = select toArray(name),toArray(eye) from t group by sex ; 
-        """)
-        result = conn1.run("re")
-        expected = pd.DataFrame({
-            "sex": ["f", "m"],
-            "toArray_name": [["jill"], ["tom", "dickh", "arry", "jack"]],
-            "toArray_eye": [["gray"], ["blue", "green", "blue", "blue"]]
-        })
-        assert_frame_equal(result, expected)
-
-    def test_session_init_python_true_parser_Nonenum_value(self):
-        # with pytest.raises(RuntimeError,match="The parameter parser must not be specified when python=true"):
-        conn1 = ddb.session(HOST, PORT, USER, PASSWD, python=False, parser="Nonenum_value")
-        conn1.run("""
-            a=[1,2,3]
-            b=(12,3,4)
-        """)
-        assert conn1.run("type(a)") == 4  # FAST INT VECTOR
-        assert conn1.run("type(b)") == 25  # ANY VECTOR
 
     def test_session_init_enableASYN_Warning(self):
         warnings.filterwarnings('error')

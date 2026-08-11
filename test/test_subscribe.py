@@ -335,7 +335,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -363,7 +363,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -403,7 +403,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -428,7 +428,7 @@ class TestSubscribe:
                     stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
                 }}
                 try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-                share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+                share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
                 setStreamTableFilterColumn({func_name}, `sym)
                 insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
             """
@@ -468,7 +468,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -513,7 +513,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -556,7 +556,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price`id, [TIMESTAMP,SYMBOL,DOUBLE, INT]) as {func_name}
+            share streamTable(10000:0,`time`sym`price`id, [NANOTIMESTAMP,SYMBOL,DOUBLE, INT]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0, int(1..10))
         """
@@ -585,7 +585,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price`id, [TIMESTAMP,SYMBOL,DOUBLE, INT]) as {func_name}
+            share streamTable(10000:0,`time`sym`price`id, [NANOTIMESTAMP,SYMBOL,DOUBLE, INT]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0, int(1..10))
         """
@@ -629,7 +629,9 @@ class TestSubscribe:
         conn1.subscribe(HOST, PORT, gethandler(df, counter), func_name, "action", 0, False, msgAsTable=False,
                         userName=USER, password=PASSWD)
         assert counter.wait_s(20)
-        assert_frame_equal(df, conn1.run(f"select * from {func_name}"))
+        expect = conn1.run(f"select * from {func_name}")
+        expect["symbolv"] = expect["symbolv"].astype("object")
+        assert_frame_equal(df, expect)
         conn1.unsubscribe(HOST, PORT, func_name, "action")
         conn1.close()
 
@@ -872,11 +874,11 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             go
             n = 10
-            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
-            t2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE]);
+            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
+            t2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE]);
             share t1 as {func_name}_1
             share t2 as {func_name}_2
             tableInsert({func_name}_1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n));
@@ -913,14 +915,14 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             n = 10;
             dbName = '{db_name}'
             if(existsDatabase(dbName))
                 dropDatabase(dbName)
             db = database(dbName,RANGE,2012.01.01 2013.01.01 2014.01.01 2015.01.01 2016.01.01 2017.01.01 2018.01.01 2019.01.01)
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE])
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE])
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n))
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n))
             pt1 = db.createPartitionedTable(table1,'pt1',`datetimev).append!(table1)
@@ -965,12 +967,12 @@ class TestSubscribe:
             go
             use catalog orca
             g = createStreamGraph('engine')
-            g.source("orca.orca_table.{func_name}", `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]).sink("output")
+            g.source("orca.orca_table.{func_name}", `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]).sink("output")
             g.submit()
             go
             n = 10
-            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
-            t2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE]);
+            t1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
+            t2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE]);
             share t1 as {func_name}_1
             share t2 as {func_name}_2
             tableInsert({func_name}_1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n));
@@ -1007,11 +1009,11 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             go
             n = 10
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE]);
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE]);
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n));
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n));
             d = dict(['msg1','msg2'], [table1, table2]);
@@ -1045,11 +1047,11 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             go
             n = 5000
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE]);
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE]);
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE]);
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n));
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n));
             d = dict(['msg1','msg2'], [table1, table2]);
@@ -1084,14 +1086,14 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             n = 10;
             dbName = '{db_name}'
             if(existsDatabase(dbName))
                 dropDatabase(dbName)
             db = database(dbName,RANGE,2012.01.01 2013.01.01 2014.01.01 2015.01.01 2016.01.01 2017.01.01 2018.01.01 2019.01.01)
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE])
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE])
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n))
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n))
             pt1 = db.createPartitionedTable(table1,'pt1',`datetimev).append!(table1)
@@ -1127,14 +1129,14 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(100:0, `timestampv`sym`blob`price1,[TIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
+            share streamTable(100:0, `timestampv`sym`blob`price1,[NANOTIMESTAMP,SYMBOL,BLOB,DOUBLE]) as {func_name}
             n = 5000;
             dbName = '{db_name}'
             if(existsDatabase(dbName))
                 dropDatabase(dbName)
             db = database(dbName,RANGE,2012.01.01 2013.01.01 2014.01.01 2015.01.01 2016.01.01 2017.01.01 2018.01.01 2019.01.01)
-            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
-            table2 = table(100:0, `datetimev`timestampv`sym`price1, [DATETIME, TIMESTAMP, SYMBOL, DOUBLE])
+            table1 = table(100:0, `datetimev`timestampv`sym`price1`price2, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE, DOUBLE])
+            table2 = table(100:0, `datetimev`timestampv`sym`price1, [NANOTIMESTAMP, NANOTIMESTAMP, SYMBOL, DOUBLE])
             tableInsert(table1, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n), rand(100,n)+rand(1.0, n))
             tableInsert(table2, 2012.01.01T01:21:23 + 1..n, 2018.12.01T01:21:23.000 + 1..n, take(`a`b`c,n), rand(100,n)+rand(1.0, n))
             pt1 = db.createPartitionedTable(table1,'pt1',`datetimev).append!(table1)
@@ -1170,7 +1172,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -1202,7 +1204,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -1234,7 +1236,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -1266,7 +1268,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -1306,7 +1308,7 @@ class TestSubscribe:
                 stopPublishTable(ip_port[0],int(ip_port[1]),subscriber.tableName,subscriber.actions);
             }}
             try{{dropStreamTable(`{func_name})}}catch(ex){{}}
-            share streamTable(10000:0,`time`sym`price, [TIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
+            share streamTable(10000:0,`time`sym`price, [NANOTIMESTAMP,SYMBOL,DOUBLE]) as {func_name}
             setStreamTableFilterColumn({func_name}, `sym)
             insert into {func_name} values(take(now(), 10), take(`000905`600001`300201`000908`600002, 10), rand(1000,10)/10.0)
         """
@@ -1333,19 +1335,19 @@ class TestSubscribe:
     def test_subscribe_many_tables(self):
         func_name = inspect.currentframe().f_code.co_name
         self.conn.run(f"""
-            share streamTable(12000:0,`time`sym`price`id, [TIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}
+            share streamTable(12000:0,`time`sym`price`id, [NANOTIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}
             insert into {func_name} values(take(now(), 2000), take(`000905`600001`300201`000908`600002, 2000), rand(1000,2000)/10.0, 1..2000)
 
-            share streamTable(120000:0,`time`sym`price`id, [TIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}2
+            share streamTable(120000:0,`time`sym`price`id, [NANOTIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}2
             insert into {func_name}2 values(take(now(), 2000), take(`000905`600001`300201`000908`600002, 2000), rand(1000,2000)/10.0, 1..2000)
 
-            share streamTable(120000:0,`time`sym`price`id, [TIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}3
+            share streamTable(120000:0,`time`sym`price`id, [NANOTIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}3
             insert into {func_name}3 values(take(now(), 2000), take(`000905`600001`300201`000908`600002, 2000), rand(1000,2000)/10.0, 1..2000)
 
-            share streamTable(120000:0,`time`sym`price`id, [TIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}4
+            share streamTable(120000:0,`time`sym`price`id, [NANOTIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}4
             insert into {func_name}4 values(take(now(), 2000), take(`000905`600001`300201`000908`600002, 2000), rand(1000,2000)/10.0, 1..2000)
 
-            share streamTable(120000:0,`time`sym`price`id, [TIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}5
+            share streamTable(120000:0,`time`sym`price`id, [NANOTIMESTAMP,SYMBOL,DOUBLE,INT]) as {func_name}5
             insert into {func_name}5 values(take(now(), 2000), take(`000905`600001`300201`000908`600002, 2000), rand(1000,2000)/10.0, 1..2000)
         """)
         conn1 = ddb.session()

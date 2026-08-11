@@ -1,9 +1,12 @@
 import dolphindb as ddb
+import numpy as np
+import pandas as pd
 import pytest
 from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_array_equal, assert_equal
 from pandas._testing import assert_frame_equal
 
 from basic_testing.prepare import PYTHON_VERSION, NUMPY_VERSION
+from basic_testing.utils import equalPlus
 from setup.prepare import DATATYPE, get_Scalar, get_ArrayVector, get_Dictionary, get_Matrix, get_Pair, get_Set, \
     get_Table, get_Table_arrayVetcor, get_Vector
 from setup.settings import HOST, PORT, USER, PASSWD
@@ -122,7 +125,7 @@ class TestDownload:
                     p['month_0'] = p['month_0'].astype('datetime64[ns]')
                     p['month_1'] = p['month_1'].astype('datetime64[ns]')
                     p['month_2'] = p['month_2'].astype('datetime64[ns]')
-                assert_frame_equal(res, p)
+                assert equalPlus(res, p)
         conn.close()
 
     @pytest.mark.parametrize('data_type', DATATYPE, ids=[x.name for x in DATATYPE])
@@ -146,6 +149,10 @@ class TestDownload:
     @pytest.mark.parametrize('typeTable', ["table", "streamTable"], ids=["table", "streamTable"])
     @pytest.mark.parametrize('isShare', [True, False], ids=["EnShare", "UnShare"])
     def test_download_tableArrayVector(self, data_type, pickle, compress, typeTable, isShare):
+        if PYTHON_VERSION >= (3, 13) and pickle:
+            pytest.skip("pickle not support when python version >= 3.13")
+        elif pickle and NUMPY_VERSION > (2,):
+            pytest.skip("pickle not support numpy 2.0")
         tmp_s, tmp_p = get_Table_arrayVetcor(types=data_type, n=100, typeTable=typeTable, isShare=isShare,
                                              names="download")
         conn = ddb.session(HOST, PORT, USER, PASSWD, enablePickle=pickle, compress=compress)
@@ -163,8 +170,11 @@ class TestDownload:
                     DATATYPE.DT_NANOTIMESTAMP,
                     DATATYPE.DT_DATEHOUR
             ):
+                datetime_dtype = "datetime64[M]" if data_type == DATATYPE.DT_MONTH else "datetime64[ns]"
                 for i in p:
-                    for index, j in enumerate(p[i]):
-                        p.loc[index, i] = j.astype("datetime64[ns]")
-            assert_frame_equal(conn.run(s), p)
+                    p[i] = pd.Series(
+                        [np.array(j, dtype=datetime_dtype) for j in p[i]],
+                        dtype="object",
+                    )
+            assert equalPlus(conn.run(s), p)
         conn.close()

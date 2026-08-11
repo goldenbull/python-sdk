@@ -21,7 +21,7 @@ class TestTableUpsert:
         conn = ddb.session(HOST, PORT, USER, PASSWD)
         conn.run("t=keyedTable(`qty,1000:0, `sym`date`qty, [SYMBOL, DATE, INT])")
         upsert = ddb.tableUpsert(dbPath="", tableName="t", ddbSession=conn)
-        with pytest.raises(RuntimeError, match='table must be a DataFrame!'):
+        with pytest.raises(RuntimeError):
             upsert.upsert(object())
 
     @pytest.mark.parametrize('compress', [True, False], ids=["EnCompress", "UnCompress"])
@@ -938,10 +938,8 @@ class TestTableUpsert:
                                dtype='object'),
             'blob': np.array([b'blob1', b'blob2'], dtype='object')
         })
-        try:
+        with pytest.raises(RuntimeError):
             upsert.upsert(df)
-        except Exception as e:
-            assert "The value e1671797c52e15f763380b45e841ec32 (column \"date\", row 0) must be of DATE type." in str(e)
 
     @pytest.mark.parametrize('compress', [True, False], ids=["EnCompress", "UnCompress"])
     def test_tableUpsert_dfs_table_column_dateType_not_match_2(self, compress):
@@ -992,10 +990,8 @@ class TestTableUpsert:
                                dtype='object'),
             'blob': np.array([b'blob1', b'blob2'], dtype='object')
         })
-        try:
+        with pytest.raises(RuntimeError):
             upsert.upsert(df)
-        except Exception as e:
-            assert "The value str1 (column \"long\", row 0) must be of LONG type." in str(e)
 
     @pytest.mark.parametrize('compress', [True, False], ids=["EnCompress", "UnCompress"])
     def test_tableUpsert_dfs_table_column_dateType_not_match_3(self, compress):

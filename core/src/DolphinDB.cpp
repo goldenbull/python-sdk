@@ -316,7 +316,7 @@ bool DBConnection::connectNode(string hostName, int port, int keepAliveTime) {
                     LOG_INFO("Connect to", hostName, ":", port, "with session id:", conn_->getSessionId());
                 }
             } catch (std::exception &) {
-                LOG_WARN("Server does not support initialization check. Please upgrade.");
+                LOG_INFO("Initialization checks are available in the latest server version. You may upgrade to enable this feature.");
                 inited = true;
             }
             return inited;
@@ -578,6 +578,77 @@ py::object DBConnection::runPy(
     }
 }
 
+py::object DBConnection::runPy(
+    const string &funcName, vector<RequestArgument> &args, int priority, int parallelism,
+    int fetchSize, bool clearMemory, REQUEST_FORMAT requestFormat,
+    bool pickleTableToList, bool disableDecimal, bool withTableSchema
+) {
+    if (nodes_.empty() == false) {
+        while (closed_ == false) {
+            try {
+                return conn_->runPy(funcName, args, priority, parallelism, fetchSize, clearMemory,
+                                    requestFormat, pickleTableToList, disableDecimal, withTableSchema);
+            } catch (TagResponse &e) {
+                py::gil_scoped_release release;
+                string host;
+                int port = 0;
+                if (connected()) {
+                    ExceptionType type = parseException(e, host, port);
+                    if (type == ET_IGNORE)
+                        return py::none();
+                    else if (type == ET_UNKNOW)
+                        throw;
+                } else {
+                    parseException(e, host, port);
+                }
+                switchDataNode(host, port);
+            } catch (IOException &e) {
+                if (connected()) {
+                    throw;
+                }
+                switchDataNode("", 0);
+            }
+        }
+        return py::none();
+    } else {
+        return conn_->runPy(funcName, args, priority, parallelism, fetchSize, clearMemory,
+                            requestFormat, pickleTableToList, disableDecimal, withTableSchema);
+    }
+}
+
+py::object DBConnection::uploadPy(vector<string>& names, vector<RequestArgument>& objs, REQUEST_FORMAT requestFormat) {
+    if (nodes_.empty() == false) {
+        while (closed_ == false) {
+            try {
+                return conn_->uploadPy(names, objs, requestFormat);
+            }
+            catch (TagResponse& e) {
+                string host;
+                int port = 0;
+                if (connected()) {
+                    ExceptionType type = parseException(e, host, port);
+                    if (type == ET_IGNORE)
+                        return py::none();
+                    else if (type == ET_UNKNOW)
+                        throw;
+                }
+                else {
+                    parseException(e, host, port);
+                }
+                switchDataNode(host, port);
+            } catch (IOException &e) {
+                if (connected()) {
+                    throw;
+                }
+                switchDataNode("", 0);
+            }
+        }
+    } else {
+        return conn_->uploadPy(names, objs, requestFormat);
+    }
+    return py::none();
+}
+
 ConstantSP DBConnection::upload(const string& name, const ConstantSP& obj) {
     if (nodes_.empty() == false) {
 		while (closed_ == false) {
@@ -814,6 +885,14 @@ void DBConnectionPool::runPy(const string& functionName, const vector<ConstantSP
     pool_->runPy(functionName, args, identity, priority, parallelism, fetchSize, clearMemory, pickleTableToList, disableDecimal);
 }
 
+void DBConnectionPool::runPy(const string& functionName, const vector<RequestArgument>& args, int identity, int priority,
+                             int parallelism, int fetchSize, bool clearMemory, REQUEST_FORMAT requestFormat,
+                             bool pickleTableToList, bool disableDecimal){
+    if(identity < 0)
+        throw RuntimeException("Invalid identity: " + std::to_string(identity) + ". Identity must be a non-negative integer.");
+    pool_->runPy(functionName, args, identity, priority, parallelism, fetchSize, clearMemory, requestFormat, pickleTableToList, disableDecimal);
+}
+
 bool DBConnectionPool::isFinished(int identity){
     return pool_->isFinished(identity);
 }
@@ -824,6 +903,10 @@ ConstantSP DBConnectionPool::getData(int identity){
 
 py::object DBConnectionPool::getPyData(int identity){
     return pool_->getPyData(identity);
+}
+
+PROTOCOL DBConnectionPool::getProtocol() const {
+    return pool_->getProtocol();
 }
 
 void DBConnectionPool::shutDown(){
@@ -953,38 +1036,15 @@ void PartitionedTableAppender::init(string dbUrl, string tableName, string parti
 }
 
 int PartitionedTableAppender::append(TableSP table){
-    if(cols_ != table->columns())
-        throw RuntimeException("The input table doesn't match the schema of the target table.");
-    for(int i=0; i<cols_; ++i){
-        VectorSP curCol = table->getColumn(i);
-        checkColumnType(i, curCol->getCategory(), curCol->getType());
-		// if (columnCategories_[i] == TEMPORAL && curCol->getType() != columnTypes_[i]) {
-		// 	curCol = curCol->castTemporal(columnTypes_[i]);
-		// 	table->setColumn(i, curCol);
-		// }
-    }
-
-    for(int i=0; i<threadCount_; ++i)
-        chunkIndices_[i].clear();
-    vector<int> keys = domain_->getPartitionKeys(table->getColumn(partitionColumnIdx_));
+    vector<vector<int>> chunks = split(table);
     vector<int> tasks;
-    int rows = static_cast<int>(keys.size());
-    for(int i=0; i<rows; ++i){
-        int key = keys[i];
-        if(key >= 0)
-            chunkIndices_[key % threadCount_].emplace_back(i);
-		else {
-			throw RuntimeException("A value-partition column contain null value at row " + std::to_string(i) + ".");
-		}
-    }
     for(int i=0; i<threadCount_; ++i){
-        if(chunkIndices_[i].size() == 0)
+        if(chunks[i].empty())
             continue;
-        TableSP subTable = table->getSubTable(chunkIndices_[i]);
+        TableSP subTable = table->getSubTable(chunks[i]);
         tasks.push_back(identity_);
         vector<ConstantSP> args = {subTable};
         pool_->run(appendScript_, args, identity_--);
-
     }
     int affected = 0;
     for(auto& task : tasks){
@@ -1000,6 +1060,33 @@ int PartitionedTableAppender::append(TableSP table){
         }
     }
     return affected;
+}
+
+vector<vector<int>> PartitionedTableAppender::split(TableSP table){
+    if(cols_ != table->columns())
+        throw RuntimeException("The input table doesn't match the schema of the target table.");
+    for(int i=0; i<cols_; ++i){
+        VectorSP curCol = table->getColumn(i);
+        checkColumnType(i, curCol->getCategory(), curCol->getType());
+		// if (columnCategories_[i] == TEMPORAL && curCol->getType() != columnTypes_[i]) {
+		// 	curCol = curCol->castTemporal(columnTypes_[i]);
+		// 	table->setColumn(i, curCol);
+		// }
+    }
+
+    for(int i=0; i<threadCount_; ++i)
+        chunkIndices_[i].clear();
+    vector<int> keys = domain_->getPartitionKeys(table->getColumn(partitionColumnIdx_));
+    int rows = static_cast<int>(keys.size());
+    for(int i=0; i<rows; ++i){
+        int key = keys[i];
+        if(key >= 0)
+            chunkIndices_[key % threadCount_].emplace_back(i);
+		else {
+			throw RuntimeException("A value-partition column contain null value at row " + std::to_string(i) + ".");
+		}
+    }
+    return chunkIndices_;
 }
 
 vector<Type> PartitionedTableAppender::getColTypes() {

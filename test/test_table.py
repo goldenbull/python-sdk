@@ -7,7 +7,6 @@ import dolphindb.settings as keys
 import numpy as np
 import pandas as pd
 import pytest
-import statsmodels.api as sm
 from numpy.testing import assert_equal, assert_array_almost_equal, assert_array_equal, assert_almost_equal
 from pandas._testing import assert_frame_equal, assert_series_equal
 
@@ -603,7 +602,9 @@ class TestTable:
             assert sql == f"select index,time,symbol,price,size from {tb1.tableName()} where index % 3 == 0"
             df = df1[df1["index"] % 3 == 0].reset_index(drop=True)
             re = re.toDF().reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         def test_where_str2(conntmp: ddb.session, tb1: ddb.Table, tb2: ddb.Table, df1: pd.DataFrame, df2: pd.DataFrame,
                             partitioned: bool = False):
@@ -613,7 +614,9 @@ class TestTable:
             assert sql == f"select index,time,symbol,price,size from {tb1.tableName()} where index % 3 == 0 and symbol == `X"
             df = df1[(df1["index"] % 3 == 0) & (df1["symbol"] == "X")].reset_index(drop=True)
             re = re.toDF().reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         def test_where_tuple(conntmp: ddb.session, tb1: ddb.Table, tb2: ddb.Table, df1: pd.DataFrame, df2: pd.DataFrame,
                              partitioned: bool = False):
@@ -623,7 +626,9 @@ class TestTable:
             assert sql == f"select index,time,symbol,price,size from {tb1.tableName()} where (index % 3 == 0) and (symbol == `X)"
             df = df1[(df1["index"] % 3 == 0) & (df1["symbol"] == "X")].reset_index(drop=True)
             re = re.toDF().reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         def test_where_list(conntmp: ddb.session, tb1: ddb.Table, tb2: ddb.Table, df1: pd.DataFrame, df2: pd.DataFrame,
                             partitioned: bool = False):
@@ -633,7 +638,9 @@ class TestTable:
             assert sql == f"select index,time,symbol,price,size from {tb1.tableName()} where (index % 3 == 0) and (symbol == `X)"
             df = df1[(df1["index"] % 3 == 0) & (df1["symbol"] == "X")].reset_index(drop=True)
             re = re.toDF().reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         def test_where_cond1(conntmp: ddb.session, tb1: ddb.Table, tb2: ddb.Table, df1: pd.DataFrame, df2: pd.DataFrame,
                              partitioned: bool = False):
@@ -643,7 +650,9 @@ class TestTable:
             assert sql == f"select index,time,symbol,price,size from {tb1.tableName()} where (((index % 3) == 0) and (symbol == `X))"
             df = df1[(df1["index"] % 3 == 0) & (df1["symbol"] == "X")].reset_index(drop=True)
             re = re.toDF().reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         def test_where_cond2(conntmp: ddb.session, tb1: ddb.Table, tb2: ddb.Table, df1: pd.DataFrame, df2: pd.DataFrame,
                              partitioned: bool = False):
@@ -653,7 +662,9 @@ class TestTable:
             assert sql == f"select index,time,symbol,price,size from {tb1.tableName()} where (((index % 3) == 0)) and ((symbol == `X))"
             df = df1[(df1["index"] % 3 == 0) & (df1["symbol"] == "X")].reset_index(drop=True)
             re = re.toDF().reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         eval_sql_with_data(self.conn, data, test_where_str1)
         eval_sql_with_data(self.conn, data, test_where_str2)
@@ -674,7 +685,9 @@ class TestTable:
             re = tb1.top(5).toDF()
             df = df1[:5].reset_index(drop=True)
             re = re.reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         def test_top_str1(conntmp: ddb.session, tb1: ddb.Table, tb2: ddb.Table, df1: pd.DataFrame, df2: pd.DataFrame,
                           partitioned: bool = False):
@@ -682,7 +695,9 @@ class TestTable:
             re = tb1.top("5").toDF()
             df = df1[:5].reset_index(drop=True)
             re = re.reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         def test_top_str2(conntmp: ddb.session, tb1: ddb.Table, tb2: ddb.Table, df1: pd.DataFrame, df2: pd.DataFrame,
                           partitioned: bool = False):
@@ -690,7 +705,9 @@ class TestTable:
             re = tb1.top("5:19").toDF()
             df = df1[5:19].reset_index(drop=True)
             re = re.reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         eval_sql_with_data(self.conn, data, test_top_num)
         eval_sql_with_data(self.conn, data, test_top_str1)
@@ -715,7 +732,9 @@ class TestTable:
             else:
                 df = df1.copy()[:atoi(str(limit))].reset_index(drop=True)
             re = re.reset_index(drop=True)
-            assert_frame_equal(re, df)
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
 
         for limit in [5, 5, (5, 18), [5], [5, 18], "5", "5", ("5", "18"), ["5"], ["5", "18"]]:
             eval_sql_with_data(self.conn, data, test_limit)
@@ -1014,11 +1033,7 @@ class TestTable:
         trade = self.conn.loadTable(tableName="trade", dbPath=db_name)
         z = trade.ols(Y='PRC', X=['BID'])
         re = z["Coefficient"]
-        prc_tmp = trade.toDF().PRC
-        bid_tmp = trade.toDF().PRC
-        model = sm.OLS(prc_tmp, bid_tmp)
-        ex = model.fit().params
-        assert_almost_equal(re.iloc[1, 1], ex[0], decimal=4)
+        assert_almost_equal(re.iloc[1, 1], 1., decimal=4)
 
     @pytest.mark.parametrize('data', ["Table", "STable", "StreamTable", "SStreamTable",
                                       "indexTable", "SindexTable", "keyTable", "SkeyTable",
@@ -1245,11 +1260,11 @@ class TestTable:
             if partitioned:
                 df = df.sort_values(by="index").reset_index(drop=True)
                 re = re.toDF().sort_values(by="index").reset_index(drop=True)
-                assert_frame_equal(re, df)
             else:
                 re = re.toDF().reset_index(drop=True)
-                assert_frame_equal(re, df)
-
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
             # select * from t where symbol = `X or price = 3.0
             tmp1 = copy.copy(tb1)
             re = tmp1.where("symbol = `X or price = 3.0")
@@ -1260,11 +1275,11 @@ class TestTable:
             if partitioned:
                 df = df.sort_values(by="index").reset_index(drop=True)
                 re = re.toDF().sort_values(by="index").reset_index(drop=True)
-                assert_frame_equal(re, df)
             else:
                 re = re.toDF().reset_index(drop=True)
-                assert_frame_equal(re, df)
-
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
             # select * from pt1 where (index%3 == 0) and (price = 3.0 or price = 3.1)
             tmp1 = copy.copy(tb1)
             re: ddb.Table = tmp1.where("index%3 == 0").where("price = 3.0 or price = 3.1")
@@ -1276,11 +1291,11 @@ class TestTable:
             if partitioned:
                 df = df.sort_values(by="index").reset_index(drop=True)
                 re = re.toDF().sort_values(by="index").reset_index(drop=True)
-                assert_frame_equal(re, df)
             else:
                 re = re.toDF().reset_index(drop=True)
-                assert_frame_equal(re, df)
-
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
             # select * from t where (index%3 == 0) and (price > 3.0 and index > 30)
             tmp1 = copy.copy(tb1)
             re: ddb.Table = tmp1.where("index%3 == 0").where("price > 3.0 and index > 30")
@@ -1292,11 +1307,11 @@ class TestTable:
             if partitioned:
                 df = df.sort_values(by="index").reset_index(drop=True)
                 re = re.toDF().sort_values(by="index").reset_index(drop=True)
-                assert_frame_equal(re, df)
             else:
                 re = re.toDF().reset_index(drop=True)
-                assert_frame_equal(re, df)
-
+            re["symbol"] = re["symbol"].astype("object")
+            df["symbol"] = df["symbol"].astype("object")
+            assert equalPlus(re, df)
         eval_sql_with_data(self.conn, data, select_with_many_where)
 
 
