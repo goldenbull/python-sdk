@@ -89,7 +89,7 @@ if(WIN32)
         set (Python3_FIND_ABI "OFF" "ANY" "OFF" "ANY")
     endif()
     find_package(Python REQUIRED COMPONENTS Interpreter Development)
-else()
+elseif(NOT Python_EXECUTABLE)
     execute_process(COMMAND which python3 OUTPUT_VARIABLE PYTHON_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
     set(Python_EXECUTABLE ${PYTHON_PATH})
 endif()
@@ -100,7 +100,7 @@ message(STATUS "Python libraries: ${Python_LIBRARIES}")
 
 
 # pybind11 from config mode
-execute_process(COMMAND pybind11-config --cmakedir OUTPUT_VARIABLE pybind11_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND "${Python_EXECUTABLE}" -m pybind11 --cmakedir OUTPUT_VARIABLE pybind11_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
 file(TO_CMAKE_PATH "${pybind11_DIR}" pybind11_DIR)
 find_package(pybind11 CONFIG REQUIRED)
 message(STATUS "pybind11 version: ${pybind11_VERSION}")
@@ -186,12 +186,9 @@ if(WIN32)
     endif()
 
 elseif(APPLE)
-    find_package(UUID REQUIRED)
-
-    if(NOT UUID_FOUND)
-        message(FATAL_ERROR "UUID_ROOT_DIR not defined. You can install uuid via Homebrew:\n"
-            "  brew install util-linux\n"
-            "  export UUID_ROOT_DIR=$(brew --prefix util-linux)")
+    # Compatibility with recent AppleClang and the existing int128 specialization.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        target_compile_options(${MODULE_NAME} PRIVATE -Wno-invalid-specialization)
     endif()
 
     target_compile_definitions(${MODULE_NAME} PUBLIC MAC)
@@ -201,7 +198,8 @@ elseif(APPLE)
             OpenSSL::Crypto
             ${Python_LIBRARIES}
     )
-    target_link_libraries(${MODULE_NAME} PRIVATE UUID::UUID_STATIC pthread dl)
+    # macOS libSystem provides UUID; no external libuuid is needed.
+    target_link_libraries(${MODULE_NAME} PRIVATE pthread dl)
 
 elseif(UNIX)
     target_compile_options(${MODULE_NAME} PRIVATE -fsigned-char)

@@ -121,27 +121,7 @@ class CMakeBuild(build_ext):
         )
 
 
-def find_version(filepath):
-    with open(filepath, "r") as f:
-        content = f.read()
-    version_match = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', content, re.MULTILINE)
-    if version_match:
-        return version_match.group(1)
-    raise RuntimeError("Unable to find version string.")
-
-
-if sys.version_info.minor == 6:
-    version = find_version(os.path.join("dolphindb", "__init__.py"))
-    setup(
-        name="dolphindb",
-        version=version,
-        ext_modules=[CMakeExtension("dolphindb._dolphindbcpp")],
-        cmdclass={"build_ext": CMakeBuild},
-        python_requires=os.environ.get("PYTHON_REQUIRES", ">=3.8"),
-    )
-else:
-    setup(
-        ext_modules=[CMakeExtension("dolphindb._dolphindbcpp")],
-        cmdclass={"build_ext": CMakeBuild},
-        python_requires=os.environ.get("PYTHON_REQUIRES", ">=3.8"),
-    )
+setup(
+    ext_modules=[CMakeExtension("dolphindb._dolphindbcpp")],
+    cmdclass={"build_ext": CMakeBuild},
+)

@@ -1,11 +1,10 @@
 [build-system]
 requires = [
-    "setuptools>=59",
+    "setuptools>=77",
     "wheel",
-    "pybind11==2.12.1; python_version == '3.6'",
-    "pybind11==2.13.6; python_version >= '3.7'",
-    "numpy==2.0.2; python_version == '3.9'",
-    "numpy==2.2.6; python_version >= '3.10'",
+    "cmake>=3.15.1",
+    "pybind11==3.1.0",
+    "numpy>=2.3.3,<3",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -18,10 +17,10 @@ authors = [
     { name = "DolphinDB, Inc.", email = "support@dolphindb.com" }
 ]
 license = { text = "DolphinDB" }
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
-    "numpy >= 1.18.0, <3",
-    "pandas >= 1.0.0, !=1.3.0",
+    "numpy >= 2.3.3, <3",
+    "pandas >= 2.3.3, <4",
     "future",
     "packaging",
     "pydantic >= 2.0"
@@ -29,12 +28,10 @@ dependencies = [
 classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
@@ -46,7 +43,7 @@ Homepage = "https://dolphindb.com"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["dolphindb"]
+include = ["dolphindb", "dolphindb.*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "dolphindb.__version__" }
@@ -60,7 +57,7 @@ environment = {}
 environment-pass = []
 build-verbosity = 1
 
-skip = ["*-win32", "*-manylinux_i686", "pp*", "*-musllinux*", "*cp314*"]
+skip = ["*-win32", "*-manylinux_i686", "pp*", "*-musllinux*", "cp314t-*"]
 
 before-all = ""
 before-build = [
